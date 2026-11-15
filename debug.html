@@ -84,6 +84,11 @@
             <kbd>Shift</kbd> or <kbd>C</kbd> for the clutch (it comes up slowly when released),
             <kbd>H</kbd> handbrake, <kbd>P</kbd> pause.
           </p>
+          <p class="hint">
+            Touch: tap Start engine, push the clutch slider to 100%, tap 1, set the handbrake to off,
+            give about 25% throttle, then drag the clutch slowly down through the green band (the bite
+            range).
+          </p>
         </section>
 
         <section class="panel" aria-label="Events">
@@ -104,6 +109,7 @@
           </p>
           <div id="tuning"></div>
           <p class="error" id="tuning-error" role="alert" hidden></p>
+          <textarea class="copy-fallback" id="tuning-json" aria-label="Tuning JSON" readonly hidden></textarea>
         </section>
       </div>
     </main>

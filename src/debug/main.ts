@@ -597,22 +597,34 @@ $('tuning-reset').addEventListener('click', () => {
 });
 
 const copyButton = $<HTMLButtonElement>('tuning-copy');
+const copyFallback = $<HTMLTextAreaElement>('tuning-json');
 copyButton.addEventListener('click', async () => {
   const json = JSON.stringify(tuning, null, 2);
   try {
     await navigator.clipboard.writeText(json);
     copyButton.textContent = 'Copied';
+    copyFallback.hidden = true;
   } catch {
-    // Clipboard unavailable (insecure context or denied): show it for manual copy.
-    window.prompt('Tuning JSON', json);
+    // Clipboard unavailable (insecure context or refused): show the text,
+    // selected, so it can be copied by hand.
+    copyFallback.value = json;
+    copyFallback.hidden = false;
+    copyFallback.focus();
+    copyFallback.select();
+    copyButton.textContent = 'Select and copy below';
   }
-  setTimeout(() => (copyButton.textContent = 'Copy JSON'), 1500);
+  setTimeout(() => (copyButton.textContent = 'Copy JSON'), 2500);
 });
 
 // --- frame loop --------------------------------------------------------------
 
 let theme = readTheme();
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => (theme = readTheme()));
+// A host page may pin the theme with data-theme on the root element.
+new MutationObserver(() => (theme = readTheme())).observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ['data-theme'],
+});
 
 const tach = $<HTMLCanvasElement>('tach');
 const speedo = $<HTMLCanvasElement>('speedo');
