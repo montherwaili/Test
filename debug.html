@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sim core debug - Oman Driving Test Simulator</title>
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Sim core debug</h1>
+        <p>Engine, clutch, gearbox and stall model on a straight road. Phase 1 developer page.</p>
+      </div>
+      <div class="top-actions">
+        <button id="pause" type="button">Pause</button>
+        <button id="reset" type="button">Reset car</button>
+        <a href="./index.html">Home</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <div class="col">
+        <section class="panel p-instruments" aria-label="Instruments">
+          <div class="cluster">
+            <canvas id="tach" class="dial" aria-label="Tachometer"></canvas>
+            <div class="centre">
+              <div class="gear" id="gear" aria-label="Current gear">N</div>
+              <ul class="lamps" id="lamps"></ul>
+            </div>
+            <canvas id="speedo" class="dial" aria-label="Speedometer"></canvas>
+          </div>
+        </section>
+
+        <section class="panel p-road" aria-label="Road view">
+          <canvas id="road" class="road"></canvas>
+        </section>
+
+        <section class="panel p-charts viz-root" aria-label="Telemetry">
+          <div class="chart-head">
+            <h2>Last 20 seconds</h2>
+          </div>
+          <div class="chart" data-chart="rpm">
+            <div class="chart-title">Engine speed <span class="unit">rpm</span></div>
+            <canvas></canvas>
+          </div>
+          <div class="chart" data-chart="speed">
+            <div class="chart-title">Road speed <span class="unit">km/h</span></div>
+            <canvas></canvas>
+          </div>
+          <div class="chart" data-chart="pedals">
+            <div class="chart-title">
+              Pedals <span class="unit">% of travel</span>
+              <span class="legend" id="pedal-legend"></span>
+            </div>
+            <canvas></canvas>
+          </div>
+          <div class="tooltip" id="tooltip" hidden></div>
+        </section>
+
+        <section class="panel" aria-label="Live values">
+          <h2>Live values</h2>
+          <dl class="readouts" id="readouts"></dl>
+        </section>
+      </div>
+
+      <div class="col">
+        <section class="panel p-controls" aria-label="Driver controls">
+          <h2>Driver controls</h2>
+          <div id="pedals"></div>
+          <div class="row">
+            <span class="row-label">Gear <kbd>R</kbd> <kbd>N</kbd> <kbd>1</kbd>-<kbd>5</kbd></span>
+            <div class="gears" id="gears"></div>
+          </div>
+          <div class="row">
+            <span class="row-label">Key</span>
+            <div class="keys">
+              <label class="check"><input type="checkbox" id="ignition" checked /> Ignition <kbd>I</kbd></label>
+              <button id="starter" type="button">Start engine <kbd>E</kbd></button>
+            </div>
+          </div>
+          <div id="road-controls"></div>
+          <p class="hint">
+            Keys: <kbd>W</kbd>/<kbd>&uarr;</kbd> throttle, <kbd>S</kbd>/<kbd>&darr;</kbd> brake, hold
+            <kbd>Shift</kbd> or <kbd>C</kbd> for the clutch (it comes up slowly when released),
+            <kbd>H</kbd> handbrake, <kbd>P</kbd> pause.
+          </p>
+        </section>
+
+        <section class="panel" aria-label="Events">
+          <h2>Events</h2>
+          <ol class="log" id="log"></ol>
+        </section>
+
+        <section class="panel" aria-label="Tuning">
+          <div class="panel-head">
+            <h2>Tuning</h2>
+            <div>
+              <button id="tuning-reset" type="button">Defaults</button>
+              <button id="tuning-copy" type="button">Copy JSON</button>
+            </div>
+          </div>
+          <p class="hint">
+            Live edits to the values in <code>src/data/tuning.json</code>. Copy the JSON to keep them.
+          </p>
+          <div id="tuning"></div>
+          <p class="error" id="tuning-error" role="alert" hidden></p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="foot" id="foot"></footer>
+    <script type="module" src="/src/debug/main.ts"></script>
+  </body>
+</html>

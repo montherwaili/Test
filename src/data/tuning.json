@@ -1,0 +1,68 @@
+{
+  "sim": {
+    "stepHz": 120,
+    "maxSubSteps": 8,
+    "drivelineIterations": 12
+  },
+  "engine": {
+    "idleRpm": 800,
+    "redlineRpm": 6500,
+    "stallRpm": 400,
+    "inertia": 0.2,
+    "torqueCurve": [
+      [0, 0],
+      [200, 50],
+      [400, 80],
+      [800, 98],
+      [1000, 105],
+      [2000, 130],
+      [3000, 142],
+      [4000, 150],
+      [4400, 150],
+      [5000, 145],
+      [6000, 128],
+      [6500, 115],
+      [7000, 90]
+    ],
+    "frictionBase": 12,
+    "frictionPerRpm": 0.005,
+    "stalledHoldTorque": 30,
+    "pedalExponent": 1.6,
+    "throttleFullFlowRpm": 6500,
+    "idleGain": 0.0015,
+    "idleAuthority": 0.4,
+    "throttleLag": 0.08,
+    "revLimiterHysteresisRpm": 150,
+    "starterTorque": 35,
+    "starterMaxRpm": 450,
+    "catchRpm": 250
+  },
+  "clutch": {
+    "maxTorque": 260,
+    "biteStart": 0.65,
+    "biteEnd": 0.3,
+    "curveExponent": 2,
+    "shiftThreshold": 0.8
+  },
+  "gearbox": {
+    "forward": [3.545, 1.904, 1.31, 0.969, 0.815],
+    "reverse": 3.25,
+    "finalDrive": 4.058,
+    "efficiency": 0.92,
+    "reverseMaxSpeed": 1.0
+  },
+  "body": {
+    "mass": 1150,
+    "wheelRadius": 0.3,
+    "wheelInertia": 0.9,
+    "dragArea": 0.7,
+    "airDensity": 1.2,
+    "rollingResistance": 0.013,
+    "gravity": 9.81
+  },
+  "brakes": {
+    "maxForce": 11000,
+    "handbrakeForce": 4500,
+    "tyreGrip": 1.0
+  }
+}
