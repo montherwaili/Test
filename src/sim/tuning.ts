@@ -16,6 +16,8 @@ export interface SimTuning {
   maxSubSteps: number;
   /** Gauss-Seidel iterations of the driveline friction solver. */
   drivelineIterations: number;
+  /** Gauss-Seidel iterations of the full vehicle's tyre + driveline solver. */
+  vehicleIterations: number;
 }
 
 export interface EngineTuning {
@@ -99,8 +101,71 @@ export interface BrakeTuning {
   maxForce: number;
   /** Handbrake force fully applied, N. */
   handbrakeForce: number;
-  /** Tyre friction coefficient limiting brake force. */
+  /** Tyre friction coefficient limiting brake force (straight-line test car only). */
   tyreGrip: number;
+  /** Share of foot brake force that goes to the front axle, 0..1. */
+  frontBias: number;
+}
+
+export interface ChassisTuning {
+  /** Front to rear axle, m. */
+  wheelbase: number;
+  /** Left to right wheel centres, m. */
+  track: number;
+  /** Share of the weight on the front axle at rest, 0..1. */
+  frontWeightFraction: number;
+  /** Centre of mass above the ground at rest, m. */
+  comHeight: number;
+  /** Moments of inertia about the right (pitch), up (yaw) and forward (roll) axes, kg·m². */
+  inertia: [number, number, number];
+  /** Body shell size for collisions, m. */
+  bodyWidth: number;
+  bodyHeight: number;
+  /** Body ahead of the front axle / behind the rear axle, m. */
+  frontOverhang: number;
+  rearOverhang: number;
+  /** Underside of the body above the ground at rest, m. */
+  groundClearance: number;
+}
+
+export interface AxleSuspensionTuning {
+  /** Per wheel, N/m. */
+  springRate: number;
+  /** Per wheel, N·s/m. */
+  damping: number;
+  /** Anti-roll bar: force per metre of left/right compression difference, N/m. */
+  antiRollRate: number;
+}
+
+export interface SuspensionTuning {
+  /** Strut length at full droop, m. */
+  maxLength: number;
+  /** Compression available before the bump stop, m. */
+  travel: number;
+  /** Extra spring rate once on the bump stop, N/m. */
+  bumpStopRate: number;
+  front: AxleSuspensionTuning;
+  rear: AxleSuspensionTuning;
+}
+
+export interface TyreTuning {
+  /** Peak friction coefficient. */
+  grip: number;
+  /** Slip angle at which cornering force peaks, degrees. */
+  peakSlipAngleDeg: number;
+  /** Slip ratio at which drive force peaks. */
+  peakSlipRatio: number;
+  /** Grip left when fully sliding or spinning, as a fraction of peak. */
+  slideGrip: number;
+  /** Speed scale below which tyres act as plain static friction, m/s. */
+  restSpeed: number;
+}
+
+export interface SteeringTuning {
+  /** Front wheel angle at full lock, degrees. */
+  maxAngleDeg: number;
+  /** 0 = both front wheels parallel, 1 = true Ackermann geometry. */
+  ackermann: number;
 }
 
 export interface VehicleTuning {
@@ -110,6 +175,10 @@ export interface VehicleTuning {
   gearbox: GearboxTuning;
   body: BodyTuning;
   brakes: BrakeTuning;
+  chassis: ChassisTuning;
+  suspension: SuspensionTuning;
+  tyres: TyreTuning;
+  steering: SteeringTuning;
 }
 
 export class TuningError extends Error {
@@ -157,6 +226,7 @@ export function validateTuning(raw: unknown): VehicleTuning {
     stepHz: num(simRaw, 'sim', 'stepHz', 30, 1000),
     maxSubSteps: num(simRaw, 'sim', 'maxSubSteps', 1, 64),
     drivelineIterations: num(simRaw, 'sim', 'drivelineIterations', 1, 64),
+    vehicleIterations: num(simRaw, 'sim', 'vehicleIterations', 1, 64),
   };
 
   const engRaw = section('engine');
@@ -265,10 +335,89 @@ export function validateTuning(raw: unknown): VehicleTuning {
     maxForce: num(brRaw, 'brakes', 'maxForce', 0, 1e6),
     handbrakeForce: num(brRaw, 'brakes', 'handbrakeForce', 0, 1e6),
     tyreGrip: num(brRaw, 'brakes', 'tyreGrip', 0.05, 3),
+    frontBias: num(brRaw, 'brakes', 'frontBias', 0, 1),
+  };
+
+  const chRaw = section('chassis');
+  const inertia: [number, number, number] = [NaN, NaN, NaN];
+  const rawInertia = chRaw['inertia'];
+  if (
+    !Array.isArray(rawInertia) ||
+    rawInertia.length !== 3 ||
+    rawInertia.some((v) => typeof v !== 'number' || !Number.isFinite(v) || v <= 0)
+  ) {
+    problems.push('chassis.inertia must be three positive numbers [pitch, yaw, roll]');
+  } else {
+    inertia[0] = rawInertia[0] as number;
+    inertia[1] = rawInertia[1] as number;
+    inertia[2] = rawInertia[2] as number;
+  }
+  const chassis: ChassisTuning = {
+    wheelbase: num(chRaw, 'chassis', 'wheelbase', 1, 6),
+    track: num(chRaw, 'chassis', 'track', 0.8, 3),
+    frontWeightFraction: num(chRaw, 'chassis', 'frontWeightFraction', 0.2, 0.8),
+    comHeight: num(chRaw, 'chassis', 'comHeight', 0.2, 1.5),
+    inertia,
+    bodyWidth: num(chRaw, 'chassis', 'bodyWidth', 0.8, 3),
+    bodyHeight: num(chRaw, 'chassis', 'bodyHeight', 0.8, 3),
+    frontOverhang: num(chRaw, 'chassis', 'frontOverhang', 0, 2),
+    rearOverhang: num(chRaw, 'chassis', 'rearOverhang', 0, 2),
+    groundClearance: num(chRaw, 'chassis', 'groundClearance', 0.05, 0.6),
+  };
+  if (chassis.comHeight <= body.wheelRadius) {
+    problems.push('chassis.comHeight must be above the wheel centre (body.wheelRadius)');
+  }
+  if (chassis.groundClearance >= chassis.comHeight) {
+    problems.push('chassis.groundClearance must be below chassis.comHeight');
+  }
+
+  const susRaw = section('suspension');
+  const axle = (name: 'front' | 'rear'): AxleSuspensionTuning => {
+    const a = isRecord(susRaw[name]) ? (susRaw[name] as Rec) : {};
+    if (!isRecord(susRaw[name])) problems.push(`missing section "suspension.${name}"`);
+    return {
+      springRate: num(a, `suspension.${name}`, 'springRate', 1000, 500000),
+      damping: num(a, `suspension.${name}`, 'damping', 0, 50000),
+      antiRollRate: num(a, `suspension.${name}`, 'antiRollRate', 0, 200000),
+    };
+  };
+  const suspension: SuspensionTuning = {
+    maxLength: num(susRaw, 'suspension', 'maxLength', 0.05, 1),
+    travel: num(susRaw, 'suspension', 'travel', 0.02, 1),
+    bumpStopRate: num(susRaw, 'suspension', 'bumpStopRate', 0, 5e6),
+    front: axle('front'),
+    rear: axle('rear'),
+  };
+  if (suspension.travel > suspension.maxLength) {
+    problems.push('suspension.travel must not exceed suspension.maxLength');
+  }
+  // The car must sit within its suspension travel at rest.
+  const staticFront = (body.mass * body.gravity * chassis.frontWeightFraction) / 2 / suspension.front.springRate;
+  const staticRear = (body.mass * body.gravity * (1 - chassis.frontWeightFraction)) / 2 / suspension.rear.springRate;
+  if (staticFront >= suspension.travel) {
+    problems.push('suspension.front.springRate is too soft: the car rests on its front bump stops');
+  }
+  if (staticRear >= suspension.travel) {
+    problems.push('suspension.rear.springRate is too soft: the car rests on its rear bump stops');
+  }
+
+  const tyRaw = section('tyres');
+  const tyres: TyreTuning = {
+    grip: num(tyRaw, 'tyres', 'grip', 0.05, 3),
+    peakSlipAngleDeg: num(tyRaw, 'tyres', 'peakSlipAngleDeg', 1, 30),
+    peakSlipRatio: num(tyRaw, 'tyres', 'peakSlipRatio', 0.02, 0.8),
+    slideGrip: num(tyRaw, 'tyres', 'slideGrip', 0.2, 1),
+    restSpeed: num(tyRaw, 'tyres', 'restSpeed', 0.05, 0.6),
+  };
+
+  const stRaw = section('steering');
+  const steering: SteeringTuning = {
+    maxAngleDeg: num(stRaw, 'steering', 'maxAngleDeg', 5, 60),
+    ackermann: num(stRaw, 'steering', 'ackermann', 0, 1),
   };
 
   if (problems.length > 0) throw new TuningError(problems);
-  return { sim, engine, clutch, gearbox, body, brakes };
+  return { sim, engine, clutch, gearbox, body, brakes, chassis, suspension, tyres, steering };
 }
 
 /** A fresh, independent copy of the shipped tuning (safe to mutate). */

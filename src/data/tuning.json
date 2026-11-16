@@ -2,7 +2,8 @@
   "sim": {
     "stepHz": 120,
     "maxSubSteps": 8,
-    "drivelineIterations": 12
+    "drivelineIterations": 12,
+    "vehicleIterations": 10
   },
   "engine": {
     "idleRpm": 800,
@@ -63,6 +64,45 @@
   "brakes": {
     "maxForce": 11000,
     "handbrakeForce": 4500,
-    "tyreGrip": 1.0
+    "tyreGrip": 1.0,
+    "frontBias": 0.65
+  },
+  "chassis": {
+    "wheelbase": 2.55,
+    "track": 1.48,
+    "frontWeightFraction": 0.6,
+    "comHeight": 0.52,
+    "inertia": [1800, 2000, 450],
+    "bodyWidth": 1.7,
+    "bodyHeight": 1.42,
+    "frontOverhang": 0.85,
+    "rearOverhang": 0.7,
+    "groundClearance": 0.16
+  },
+  "suspension": {
+    "maxLength": 0.35,
+    "travel": 0.2,
+    "bumpStopRate": 150000,
+    "front": {
+      "springRate": 28000,
+      "damping": 2500,
+      "antiRollRate": 12000
+    },
+    "rear": {
+      "springRate": 22000,
+      "damping": 1800,
+      "antiRollRate": 6000
+    }
+  },
+  "tyres": {
+    "grip": 1.0,
+    "peakSlipAngleDeg": 7,
+    "peakSlipRatio": 0.12,
+    "slideGrip": 0.85,
+    "restSpeed": 0.3
+  },
+  "steering": {
+    "maxAngleDeg": 35,
+    "ackermann": 1
   }
 }

@@ -95,6 +95,26 @@ export interface PowertrainOutput {
   events: PowertrainEvent[];
 }
 
+/** The engine side of the driveline for one step, from `Powertrain.begin`. */
+export interface PowertrainDemand {
+  /** rad/s */
+  engineOmega: number;
+  /** kg·m² */
+  engineInertia: number;
+  /** Combustion + starter torque, N·m (friction excluded). */
+  engineTorque: number;
+  /** Engine friction torque capacity, N·m. */
+  engineFriction: number;
+  /** Engine revs per wheel rev, signed; 0 in neutral. */
+  ratio: number;
+  /** Clutch torque capacity at the current pedal position, N·m. */
+  clutchCapacity: number;
+  efficiency: number;
+  /** Cylinder fill in effect, 0..1. */
+  engineLoad: number;
+  events: PowertrainEvent[];
+}
+
 /** Revs this far past the redline count as a mechanical over-rev (bad downshift). */
 const OVER_REV_MARGIN_RPM = 400;
 
@@ -132,12 +152,18 @@ export class Powertrain {
     this.state.limiterCut = false;
   }
 
-  step(dt: number, controls: PowertrainControls, load: PowertrainLoad): PowertrainOutput {
-    const { engine, clutch, gearbox, sim } = this.tuning;
+  /**
+   * First half of a step: gear lever, stall / start logic, rev limiter and
+   * throttle. Returns what the driveline solver needs to know about the
+   * engine side. The caller solves the driveline (the simple two-body solver
+   * here, or the full vehicle's own) and reports back with `finish`.
+   */
+  begin(dt: number, controls: PowertrainControls, forwardSpeed: number): PowertrainDemand {
+    const { engine, clutch, gearbox } = this.tuning;
     const s = this.state;
     const events: PowertrainEvent[] = [];
 
-    this.updateGear(controls, load.forwardSpeed, events);
+    this.updateGear(controls, forwardSpeed, events);
 
     const rpm = s.engineOmega * RPM_PER_RAD_S;
     const cranking = controls.ignition && controls.starter;
@@ -190,34 +216,56 @@ export class Powertrain {
     const capacity = clutchCapacity(controls.clutch, clutch);
     const ratio = totalRatio(s.gear, gearbox);
 
-    const r = solveDriveline({
-      dt,
-      iterations: sim.drivelineIterations,
+    return {
       engineOmega: s.engineOmega,
       engineInertia: engine.inertia,
       engineTorque: drive,
       engineFriction: friction,
+      ratio,
+      clutchCapacity: capacity,
+      efficiency: gearbox.efficiency,
+      engineLoad: s.intake,
+      events,
+    };
+  }
+
+  /** Second half of a step: store the engine speed the driveline solve produced. */
+  finish(engineOmega: number): void {
+    this.state.engineOmega = engineOmega;
+  }
+
+  /** One whole step against a simple load (used by the straight-line test car). */
+  step(dt: number, controls: PowertrainControls, load: PowertrainLoad): PowertrainOutput {
+    const d = this.begin(dt, controls, load.forwardSpeed);
+
+    const r = solveDriveline({
+      dt,
+      iterations: this.tuning.sim.drivelineIterations,
+      engineOmega: d.engineOmega,
+      engineInertia: d.engineInertia,
+      engineTorque: d.engineTorque,
+      engineFriction: d.engineFriction,
       wheelOmega: load.wheelOmega,
       wheelInertia: load.wheelInertia,
       wheelTorque: load.wheelTorque,
       wheelFriction: load.wheelFriction,
-      ratio,
-      clutchCapacity: capacity,
-      efficiency: gearbox.efficiency,
+      ratio: d.ratio,
+      clutchCapacity: d.clutchCapacity,
+      efficiency: d.efficiency,
     });
 
-    s.engineOmega = r.engineOmega;
+    this.finish(r.engineOmega);
 
     return {
       wheelOmega: r.wheelOmega,
       driveTorque: r.driveTorque,
       clutchTorque: r.clutchTorque,
-      clutchCapacity: capacity,
+      clutchCapacity: d.clutchCapacity,
       clutchSlip: r.clutchSlip,
-      engineTorque: drive + r.engineFrictionTorque,
+      engineTorque: d.engineTorque + r.engineFrictionTorque,
       wheelFrictionTorque: r.wheelFrictionTorque,
-      engineLoad: s.intake,
-      events,
+      engineLoad: d.engineLoad,
+      events: d.events,
     };
   }
 
