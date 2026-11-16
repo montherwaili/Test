@@ -4,9 +4,10 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 2 of 10 complete.** You can drive a manual car around a flat
-test track in 3D, from three camera views, with a keyboard or a touch screen.
-There is no town, traffic or examiner yet.
+**Status: phase 3 of 10 complete.** You can drive a manual car around a small
+Omani-style town in 3D: roundabouts, signalled junctions, a stop junction, a
+hill road, speed bumps, crossings and parking bays. There is no traffic or
+examiner yet.
 
 ## Run it
 
@@ -41,6 +42,7 @@ handbrake, give a little gas and bring the clutch up slowly.
 | `L`, `H`, `B` | lights, horn, seatbelt |
 | `7` / `8` / `9` | check left / centre / right mirror |
 | `V` | camera: behind the car, driver's seat, from above |
+| `T` | day / night |
 | `Backspace` | put the car back at the start |
 | `F1` | help |
 
@@ -51,9 +53,15 @@ car is stopped and straightens as it rolls. The clutch pedal stays where you
 leave it, so you can hold it at the bite point and move your thumb to the
 wheel. Landscape is easier.
 
-The test track has a two-lane road with a stop line and speed bumps, a 10% hill,
-a kerb, loose cones, two parking bays marked with poles, and two circles for
-steering practice.
+The town (the default map) has a two-lane avenue with a double-lane
+roundabout in the middle and signalled junctions at each end, a ring road with
+a single-lane roundabout, a stop-controlled T-junction, a 9% hill, speed
+bumps and pedestrian crossings, and a dead-end road lined with parking bays.
+The HUD shows the speed limit of the lane you are in. `T` switches between day
+and night.
+
+Add `?map=track` to the address for the bare test track from phase 2 (road,
+10% hill, kerb, loose cones, parking bays marked with poles, steering circles).
 
 Add `?q=low`, `?q=medium` or `?q=high` to the address to force a graphics
 quality.
@@ -87,7 +95,8 @@ paste into `src/data/tuning.json` to keep them.
 
 ```
 src/sim/       vehicle model - pure TypeScript: no rendering, browser or physics-engine imports
-src/world/     the Rapier physics world and map building (later: town, road graph, signs, signals)
+src/world/     the Rapier physics world, map building and the town
+src/world/roads/  lane-level road network, town generator, signal timing - pure TypeScript
 src/render/    Three.js scene, car model, cameras, mirrors
 src/input/     keyboard, touch, input smoothing (later: gamepad, wheel, tilt)
 src/ui/        HUD and interface text (later: menus, results, replay)
@@ -99,8 +108,9 @@ src/examiner/  (phase 5) rule checks and scoring - pure TypeScript
 ```
 
 `src/__tests__/architecture.test.ts` fails the test run if anything in
-`src/sim` or `src/examiner` imports rendering, UI, world or physics-engine
-code, or touches browser globals, the wall clock or `Math.random`.
+`src/sim`, `src/examiner` or `src/world/roads` imports rendering, UI or
+physics-engine code, or touches browser globals, the wall clock or
+`Math.random`.
 
 ## How the sim core works
 
@@ -143,11 +153,55 @@ code, or touches browser globals, the wall clock or `Math.random`.
 
 Every number is in `src/data/tuning.json` and is validated on load.
 
+## The town and its road network
+
+`src/data/maps/town.json` describes the town compactly: intersections on a
+grid (roundabout, signal, priority, bend, dead end) and the roads between them
+(lanes, speed limit, and features such as a hill, bumps, crossings, parking).
+`src/world/roads/generate.ts` turns that into:
+
+- a **lane-level road network** (`network.ts`): each lane has a centre line,
+  width, speed limit, the lanes that follow it, its neighbours for lane
+  changes, the rule at its end (signal, stop, give way) and the lanes it must
+  give way to. It can find the lane under a point and plan routes. Traffic
+  (phase 4), the examiner (phase 5) and test routes (phase 6) build on it;
+- the **shapes** to pave, paint and put up: asphalt, markings, kerbs, medians,
+  islands, signs, signal heads, buildings and palms. Colliders and meshes are
+  built from the same shapes.
+
+Traffic signals (`signals.ts`) are a pure function of time, so lamps, traffic
+and the examiner always agree.
+
+### Not yet checked against Omani practice
+
+These are sensible defaults, marked `TODO(verify ...)` in the source:
+
+- road marking colours (white centre and lane lines, yellow edges);
+- which roundabout lane may take which exit (outer lane to the right-hand exit
+  lane, inner lane to the left-hand one, giving way to the outer lane);
+- signal phasing and timings (each approach gets its own green; 14 s green,
+  3 s amber, 2 s all-red; no flashing green);
+- sign designs, wording, numerals and placement.
+
+## Performance (measured after phase 3)
+
+| | |
+| --- | --- |
+| Physics + vehicle, per 120 Hz step, in the town | 41 µs (0.5% of the 8.3 ms budget) |
+| Generating the town and its 76 colliders | 16 ms, once at load |
+| Finding the lane under the car | 9 µs |
+| Draw calls per frame (chase view) | 64 |
+| Triangles per frame | about 29,000 |
+
+Static geometry is merged into a few meshes, which is what keeps the draw
+calls low. Frame rate on real hardware has not been measured: the automated
+browser has no graphics card.
+
 ## Build phases
 
 1. **Setup, sim core, unit tests, debug page** — done
 2. **Rapier vehicle on a flat test map, cameras, keyboard and touch input** — done
-3. Town: road graph, roundabouts, junctions, signs, signals, slopes
+3. **Town: road graph, roundabouts, junctions, signs, signals, slopes** — done
 4. Traffic AI and pedestrians
 5. Examiner rule engine and test yard
 6. Full test route mode and result screen

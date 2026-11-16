@@ -191,6 +191,7 @@ export class GameRenderer {
     // The same light plays the sun by day and the moon by night.
     this.sun.intensity = night ? 0.25 : 2.6;
     this.sun.color.set(night ? 0x9fb4ff : 0xfff1d8);
+    this.map.setNight(night);
   }
 
   get isNight(): boolean {

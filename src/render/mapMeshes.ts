@@ -78,6 +78,8 @@ export interface MapMeshes {
   cones: Mesh[];
   /** Light the lamps: called with the state of each signal group. */
   setSignals(stateOf: (junction: string, group: string) => SignalState): void;
+  /** Dim the road paint at night (it is unlit, so it would otherwise glow). */
+  setNight(night: boolean): void;
   /** Counts for the performance report. */
   stats: { meshes: number };
 }
@@ -160,7 +162,8 @@ class PaintBatch {
         const inPeriod = dash ? phase % period : 0;
         const painting = !dash || inPeriod < dash[0];
         const untilChange = dash ? (painting ? dash[0] - inPeriod : period - inPeriod) : Infinity;
-        const step = Math.min(len - s, untilChange, 4);
+        // Never less than a millimetre: a dash boundary landing a rounding error away must not stall the walk.
+        const step = Math.max(1e-3, Math.min(len - s, untilChange, 4));
         if (painting) {
           const t0 = s / len;
           const t1 = (s + step) / len;
@@ -172,7 +175,7 @@ class PaintBatch {
     }
   }
 
-  build(color: number): Mesh | null {
+  build(color: number): Mesh<BufferGeometry, MeshBasicMaterial> | null {
     if (this.positions.length === 0) return null;
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(this.positions), 3));
@@ -460,10 +463,16 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
       root.add(ring);
     }
   }
+  const paintMaterials: { material: MeshBasicMaterial; day: number }[] = [];
   for (const [color, b] of batches) {
     const mesh = b.build(MARKING_COLORS[color]);
-    if (mesh) root.add(mesh);
+    if (!mesh) continue;
+    root.add(mesh);
+    paintMaterials.push({ material: mesh.material, day: MARKING_COLORS[color] });
   }
+  const setNight: MapMeshes['setNight'] = (night) => {
+    for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.35 : 1);
+  };
 
   // --- loose cones ----------------------------------------------------------------
   const coneGeo = new ConeGeometry(CONE_RADIUS, CONE_HEIGHT, 10);
@@ -479,5 +488,5 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   root.traverse((o) => {
     if ((o as Mesh).isMesh) meshes++;
   });
-  return { root, cones, setSignals, stats: { meshes } };
+  return { root, cones, setSignals, setNight, stats: { meshes } };
 }

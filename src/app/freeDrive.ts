@@ -23,7 +23,7 @@ import { createDefaultTuning } from '../sim/tuning';
 import { Vehicle, type DriveControls, type Quat, type Vec3, type VehicleEvent } from '../sim/vehicle';
 import { Hud } from '../ui/hud';
 import type { StringKey } from '../ui/i18n';
-import { buildMap, type MapDef } from '../world/map';
+import { buildMap, surfaceHeight, type MapDef } from '../world/map';
 import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
@@ -79,6 +79,7 @@ export interface FreeDrive {
   /** Frames drawn and simulation steps run so far. */
   stats: { frames: number; steps: number; fps: number };
   network: RoadNetwork | null;
+  teleport: (x: number, z: number, heading: number) => void;
 }
 
 export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement): Promise<FreeDrive> {
@@ -90,6 +91,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const wantTrack = new URLSearchParams(location.search).get('map') === 'track';
   const map = wantTrack ? buildMap(testTrack as MapDef, physics) : buildTown(physics);
   const network = map.network;
+  const surfaceHeightAt = (x: number, z: number) => surfaceHeight(map, x, z);
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
   const vehicle = new Vehicle(tuning, car.port, physics.ground);
   const ancillaries = new Ancillaries();
@@ -336,5 +338,16 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   hud.say('msgStartHint', 8);
   requestAnimationFrame(frame);
 
-  return { vehicle, controls, ancillaries, renderer, stats, network };
+  /** Put the car somewhere, at rest (used by automated page checks). */
+  const teleport = (x: number, z: number, heading: number): void => {
+    car.place({ x, y: surfaceHeightAt(x, z), z }, heading);
+    vehicle.resetSolver();
+    Object.assign(prevPos, car.body.translation());
+    Object.assign(currPos, prevPos);
+    Object.assign(prevRot, car.body.rotation());
+    Object.assign(currRot, prevRot);
+    renderer.snapCamera();
+  };
+
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport };
 }
