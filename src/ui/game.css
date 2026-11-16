@@ -1,0 +1,638 @@
+/* Game screen: a full-window 3D view with instruments and controls on top.
+   One deliberate look (dark glass over the scene), not theme-dependent. */
+:root {
+  color-scheme: dark;
+  --ink: #f4f3ee;
+  --ink-2: #c9c7bd;
+  --ink-3: #8d8b83;
+  --panel: rgba(16, 18, 22, 0.66);
+  --panel-solid: #16181d;
+  --line: rgba(255, 255, 255, 0.16);
+  --accent: #3d8bea;
+  --good: #19b36a;
+  --warn: #ffb224;
+  --bad: #ef4444;
+  --clutch: #19b36a;
+  --brake: #ef6a3a;
+  --gas: #3d8bea;
+  --font: system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* `hidden` must win over the display values set on panels below. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #a9d3f0;
+  color: var(--ink);
+  font: 14px/1.4 var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+
+#view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.splash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #16181d;
+  font-size: 18px;
+  z-index: 10;
+  text-align: center;
+  padding: 24px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- HUD ------------------------------------------------------------------ */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  padding: max(8px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px))
+    max(8px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.topbar {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  inset-inline-start: max(10px, env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(50vw - 130px);
+}
+
+.hud-btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 11px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+.hud-btn:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.hud-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.cluster {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.dials {
+  width: 190px;
+}
+
+.rpm-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.rpm-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: var(--ink);
+  border-radius: 4px;
+}
+
+.rpm-fill.high {
+  background: var(--bad);
+}
+
+.rpm-red {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: rgba(239, 68, 68, 0.45);
+}
+
+.rpm-text {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.speed-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.gear {
+  min-width: 34px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  align-self: center;
+}
+
+.gear.pending {
+  border-style: dashed;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.speed {
+  flex: 1;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.lamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  min-height: 20px;
+}
+
+.lamp {
+  display: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.lamp.on {
+  display: inline-block;
+}
+
+.lamp-red {
+  color: #ff8a8a;
+}
+
+.lamp-green {
+  color: #6fe0a8;
+}
+
+.arrow {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.16);
+}
+
+.arrow.on {
+  color: var(--good);
+}
+
+.toast {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 520px);
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+.rotate-hint {
+  display: none;
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 86vw;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* --- help ------------------------------------------------------------------ */
+
+.help-panel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+  z-index: 5;
+}
+
+.help-card {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: pan-y;
+}
+
+.help-card h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.help-card h3 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.help-steps {
+  margin: 0;
+  padding-inline-start: 22px;
+  line-height: 1.7;
+}
+
+.help-keys {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 2px 18px;
+}
+
+.help-keys div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.help-keys dt {
+  color: var(--ink-2);
+}
+
+.help-keys dd {
+  margin: 0;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.help-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.help-foot a {
+  color: #8fbcf5;
+}
+
+/* --- driving controls ---------------------------------------------------- */
+
+.controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --edge-x: max(12px, env(safe-area-inset-left, 0px));
+  --edge-r: max(12px, env(safe-area-inset-right, 0px));
+  --edge-b: max(12px, env(safe-area-inset-bottom, 0px));
+  --pedal-h: clamp(120px, 40vh, 240px);
+  --pedal-w: clamp(54px, 9.5vw, 84px);
+  --steer-h: clamp(86px, 26vh, 130px);
+}
+
+.controls > * {
+  pointer-events: auto;
+}
+
+.ctl-label {
+  font-size: 11px;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+
+/* Pedals: small gauges on a desktop... */
+.pedals {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pedal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 44px;
+  touch-action: none;
+}
+
+.pedal-track {
+  position: relative;
+  width: 100%;
+  height: 86px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.pedal-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: var(--pedal);
+  opacity: 0.9;
+}
+
+.pedal-clutch {
+  --pedal: var(--clutch);
+}
+
+.pedal-brake {
+  --pedal: var(--brake);
+}
+
+.pedal-throttle {
+  --pedal: var(--gas);
+}
+
+.pedal-bite {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.75);
+  border-bottom: 2px dashed rgba(255, 255, 255, 0.75);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.pedal.active .pedal-track {
+  outline: 2px solid var(--ink);
+}
+
+.steer-pad,
+.gears,
+.buttons {
+  display: none;
+}
+
+/* ...and full-size controls on a touch screen: steering and gears under the
+   left thumb, pedals and buttons under the right, the middle left clear. */
+.touch .pedals {
+  right: var(--edge-r);
+  bottom: var(--edge-b);
+  gap: 10px;
+  padding: 10px;
+}
+
+.touch .pedal {
+  width: var(--pedal-w);
+}
+
+.touch .pedal-track {
+  height: var(--pedal-h);
+}
+
+.touch .steer-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  left: var(--edge-x);
+  bottom: var(--edge-b);
+  width: clamp(170px, 34vw, 320px);
+  height: var(--steer-h);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  touch-action: none;
+}
+
+.touch .steer-pad .ctl-label {
+  position: absolute;
+  top: 6px;
+}
+
+.steer-knob {
+  width: 30%;
+  height: 56%;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  will-change: transform;
+}
+
+.steer-pad.active {
+  border-color: var(--ink);
+}
+
+.touch .gears {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  position: absolute;
+  left: var(--edge-x);
+  bottom: calc(var(--edge-b) + var(--steer-h) + 10px);
+  padding: 7px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.gear-btn {
+  width: clamp(38px, 6.4vw, 50px);
+  height: clamp(30px, 8.5vh, 44px);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.gear-n {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: clamp(26px, 6.5vh, 34px);
+}
+
+.gear-btn.on {
+  background: var(--ink);
+  color: #16181d;
+}
+
+.touch .buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  position: absolute;
+  right: var(--edge-r);
+  /* Sits on top of the pedal block (track + label + padding). */
+  bottom: calc(var(--edge-b) + var(--pedal-h) + 56px);
+  width: calc(var(--pedal-w) * 3 + 42px);
+}
+
+.ctl-btn {
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 4px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctl-btn.on {
+  background: var(--ink);
+  color: #16181d;
+}
+
+.btn-ind.on {
+  background: rgba(25, 179, 106, 0.3);
+  color: var(--ink);
+  border-color: var(--good);
+}
+
+.btn-ind.lit {
+  background: var(--good);
+  color: #06140d;
+}
+
+.btn-start {
+  border-color: var(--good);
+}
+
+/* Narrow and tall (a phone held upright): it works, but ask for a turn. */
+@media (orientation: portrait) and (max-width: 640px) {
+  .touch .rotate-hint {
+    display: block;
+  }
+  .topbar {
+    max-width: none;
+  }
+  .cluster {
+    top: calc(max(8px, env(safe-area-inset-top, 0px)) + 44px);
+  }
+  .controls {
+    --pedal-h: 150px;
+    --pedal-w: 15vw;
+    --steer-h: 96px;
+  }
+  .touch .steer-pad {
+    width: 40vw;
+  }
+}
+
+/* Short landscape phones: keep the cluster compact. */
+@media (max-height: 430px) {
+  .dials {
+    width: 160px;
+  }
+  .speed {
+    font-size: 30px;
+  }
+  .gear {
+    font-size: 22px;
+  }
+  .hud-btn {
+    padding: 4px 9px;
+    font-size: 12px;
+  }
+  .toast {
+    top: 30%;
+    font-size: 14px;
+  }
+}

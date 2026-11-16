@@ -1,0 +1,41 @@
+{
+  "id": "testTrack",
+  "groundSize": 700,
+  "spawn": { "x": 0, "z": 10, "headingDeg": 0 },
+  "roads": [
+    { "from": [-1.75, 30], "to": [-1.75, -170], "width": 7 },
+    { "from": [14, 10], "to": [14, -120], "width": 4 }
+  ],
+  "hills": [
+    { "x": 14, "z": -20, "width": 4, "gradePercent": 10, "rampLength": 30, "plateauLength": 14 }
+  ],
+  "solids": [
+    { "kind": "bump", "shape": "bump", "center": [0, -50], "width": 3.5, "height": 0.07, "radius": 1.2 },
+    { "kind": "bump", "shape": "bump", "center": [0, -56], "width": 3.5, "height": 0.07, "radius": 1.2 },
+    { "kind": "kerb", "shape": "box", "center": [2.0, 0.075, -115], "size": [0.3, 0.15, 50] },
+    { "kind": "wall", "shape": "box", "center": [-1.75, 0.6, -172], "size": [30, 1.2, 0.6] },
+    { "kind": "pole", "shape": "cylinder", "center": [24.0, 0.6, -30.0], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [26.8, 0.6, -30.0], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [24.0, 0.6, -35.5], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [26.8, 0.6, -35.5], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [31.0, 0.6, -50.0], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [33.4, 0.6, -50.0], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [31.0, 0.6, -57.0], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [33.4, 0.6, -57.0], "height": 1.2, "radius": 0.04 }
+  ],
+  "cones": [
+    [-16, -10], [-16, -19], [-16, -28], [-16, -37], [-16, -46], [-16, -55], [-16, -64]
+  ],
+  "markings": [
+    { "type": "line", "from": [-1.75, 30], "to": [-1.75, -170], "width": 0.12, "color": "white", "dash": [3, 4.5] },
+    { "type": "line", "from": [1.65, 30], "to": [1.65, -170], "width": 0.12, "color": "yellow" },
+    { "type": "line", "from": [-5.15, 30], "to": [-5.15, -170], "width": 0.12, "color": "yellow" },
+    { "type": "line", "from": [-1.6, -80], "to": [1.6, -80], "width": 0.4, "color": "white" },
+    { "type": "line", "from": [12.2, -18], "to": [15.8, -18], "width": 0.4, "color": "white" },
+    { "type": "line", "from": [12.2, -42], "to": [15.8, -42], "width": 0.3, "color": "white" },
+    { "type": "rect", "center": [25.4, -32.75], "size": [2.8, 5.5], "width": 0.1, "color": "white" },
+    { "type": "rect", "center": [32.2, -53.5], "size": [2.4, 7.0], "width": 0.1, "color": "white" },
+    { "type": "circle", "center": [-40, -100], "radius": 12, "width": 0.15, "color": "white" },
+    { "type": "circle", "center": [-40, -100], "radius": 20, "width": 0.15, "color": "white" }
+  ]
+}

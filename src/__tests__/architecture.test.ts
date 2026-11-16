@@ -15,7 +15,7 @@ const FORBIDDEN_IMPORTS = [
   /from\s+['"]three['"]/,
   /from\s+['"]three\//,
   /from\s+['"]@dimforge\//,
-  /from\s+['"](\.\.\/)+(render|ui|input|debug)\b/,
+  /from\s+['"](\.\.\/)+(render|ui|input|debug|app|world|traffic)\b/,
 ];
 
 const FORBIDDEN_GLOBALS = [
