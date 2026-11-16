@@ -17,11 +17,14 @@ export interface HudState {
   lampLeft: boolean;
   lampRight: boolean;
   camera: StringKey;
+  /** Speed limit where the car is, km/h; null off the road network. */
+  speedLimit: number | null;
 }
 
 export interface HudCallbacks {
   onCamera: () => void;
   onReset: () => void;
+  onNight: () => void;
 }
 
 const MAX_RPM = 7000;
@@ -40,6 +43,7 @@ export class Hud {
   private readonly rpmRed: HTMLElement;
   private readonly rpmText: HTMLElement;
   private readonly gear: HTMLElement;
+  private readonly limit: HTMLElement;
   private readonly arrowLeft: HTMLElement;
   private readonly arrowRight: HTMLElement;
   private readonly lamps: Record<'engine' | 'handbrake' | 'seatbelt' | 'lights', HTMLElement>;
@@ -51,7 +55,7 @@ export class Hud {
   private readonly helpPanel: HTMLElement;
   private readonly labelled: [HTMLElement, StringKey][] = [];
   private toastTimer = 0;
-  private last = { speed: '', rpm: -1, gear: '', camera: '' as string };
+  private last = { speed: '', rpm: -1, gear: '', camera: '' as string, limit: '' };
 
   constructor(parent: HTMLElement, callbacks: HudCallbacks) {
     this.root = el('div', 'hud', parent);
@@ -86,6 +90,9 @@ export class Hud {
     this.rpmText = el('div', 'rpm-text', rpm);
     const row = el('div', 'speed-row', dials);
     this.gear = el('div', 'gear', row);
+    // The limit in force, drawn like the sign.
+    this.limit = el('div', 'limit', row);
+    this.limit.hidden = true;
     this.speed = el('div', 'speed', row);
     this.label(el('div', 'unit', row), 'kmh');
     const lamps = el('div', 'lamps', dials);
@@ -109,7 +116,7 @@ export class Hud {
 
     this.label(el('div', 'rotate-hint', this.root), 'msgRotate');
 
-    this.helpPanel = this.buildHelp();
+    this.helpPanel = this.buildHelp(callbacks);
     onLangChange(() => this.relabel());
     this.relabel();
   }
@@ -128,6 +135,13 @@ export class Hud {
       this.rpmRed.style.left = `${(s.redlineRpm / MAX_RPM) * 100}%`;
       this.last.rpm = rpm;
     }
+    const limit = s.speedLimit === null ? '' : String(s.speedLimit);
+    if (limit !== this.last.limit) {
+      this.last.limit = limit;
+      this.limit.hidden = limit === '';
+      this.limit.textContent = limit;
+    }
+    this.limit.classList.toggle('over', s.speedLimit !== null && Math.abs(s.speedKmh) > s.speedLimit + 0.5);
     if (s.gear !== this.last.gear) {
       this.gear.textContent = s.gear;
       this.last.gear = s.gear;
@@ -167,7 +181,7 @@ export class Hud {
     return !this.helpPanel.hidden;
   }
 
-  private buildHelp(): HTMLElement {
+  private buildHelp(callbacks: HudCallbacks): HTMLElement {
     const panel = el('div', 'help-panel', this.root);
     panel.hidden = true;
     const card = el('div', 'help-card', panel);
@@ -193,6 +207,7 @@ export class Hud {
     const link = el('a', '', foot);
     link.href = './debug.html';
     this.label(link, 'debugLink');
+    this.button(foot, 'night', callbacks.onNight);
     this.button(foot, 'reset', () => {
       this.toggleHelp(false);
       this.onReset();

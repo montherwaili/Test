@@ -24,6 +24,8 @@ const STRINGS = {
   seatbelt: { ar: 'الحزام', en: 'Belt' },
   camera: { ar: 'الكاميرا', en: 'Camera' },
   reset: { ar: 'إعادة', en: 'Reset' },
+  night: { ar: 'ليل / نهار', en: 'Day / night' },
+  limit: { ar: 'الحد', en: 'Limit' },
   help: { ar: 'مساعدة', en: 'Help' },
   close: { ar: 'إغلاق', en: 'Close' },
   language: { ar: 'English', en: 'العربية' },
@@ -92,6 +94,7 @@ const STRINGS = {
   kSeatbelt: { ar: 'حزام الأمان', en: 'Seatbelt' },
   kMirrors: { ar: 'النظر في المرايا: يسار / وسط / يمين', en: 'Check mirrors: left / centre / right' },
   kCamera: { ar: 'تبديل الكاميرا', en: 'Change camera' },
+  kNight: { ar: 'ليل / نهار', en: 'Day / night' },
   kReset: { ar: 'إعادة السيارة', en: 'Reset the car' },
   debugLink: { ar: 'صفحة فحص المحاكاة', en: 'Simulation debug page' },
 } as const;

@@ -7,10 +7,12 @@ import {
   DirectionalLight,
   Fog,
   HemisphereLight,
+  Object3D,
   PCFShadowMap,
   PerspectiveCamera,
   Quaternion,
   Scene,
+  SpotLight,
   Vector3,
   WebGLRenderTarget,
   WebGLRenderer,
@@ -18,6 +20,7 @@ import {
 import type { VehicleTuning } from '../sim/tuning';
 import type { Quat, Vec3 } from '../sim/vehicle';
 import type { BuiltMap } from '../world/map';
+import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
 
@@ -60,6 +63,8 @@ export interface LooseView {
 
 const SKY = 0xa9d3f0;
 const HAZE = 0xdfe6ea;
+const NIGHT_SKY = 0x0b1022;
+const NIGHT_HAZE = 0x10162a;
 /** Steering wheel turns per unit of steering input, rad (about 1.4 turns each way). */
 const STEERING_WHEEL_LOCK = Math.PI * 2.8;
 
@@ -77,6 +82,9 @@ export class GameRenderer {
   private readonly car: CarModel;
   private readonly map: MapMeshes;
   private readonly sun: DirectionalLight;
+  private readonly sky: HemisphereLight;
+  private readonly headlamps: SpotLight[] = [];
+  private night = false;
   private readonly mirrors: MirrorView[] = [];
   private mirrorCursor = 0;
   private chaseYaw = 0;
@@ -101,7 +109,8 @@ export class GameRenderer {
     this.scene.background = new Color(SKY);
     this.scene.fog = new Fog(HAZE, 140, 520);
 
-    this.scene.add(new HemisphereLight(0xdbeeff, 0xcdb58a, 1.5));
+    this.sky = new HemisphereLight(0xdbeeff, 0xcdb58a, 1.5);
+    this.scene.add(this.sky);
     this.sun = new DirectionalLight(0xfff1d8, 2.6);
     this.sun.castShadow = quality.shadows;
     if (quality.shadows) {
@@ -122,6 +131,18 @@ export class GameRenderer {
 
     this.car = createCarModel(tuning);
     this.scene.add(this.car.root);
+
+    // Headlamp beams, switched on with the car's lights at night.
+    const toFront = tuning.chassis.wheelbase * (1 - tuning.chassis.frontWeightFraction) + tuning.chassis.frontOverhang;
+    for (const side of [-1, 1]) {
+      const lamp = new SpotLight(0xfff2d0, 0, 70, 0.5, 0.5, 1.2);
+      lamp.position.set(side * 0.55, 0.15, -toFront);
+      const aim = new Object3D();
+      aim.position.set(side * 0.8, -0.9, -toFront - 25);
+      this.car.root.add(lamp, aim);
+      lamp.target = aim;
+      this.headlamps.push(lamp);
+    }
 
     if (quality.mirrorsPerFrame > 0) {
       const w = tuning.chassis.bodyWidth;
@@ -161,6 +182,32 @@ export class GameRenderer {
     this.camera.updateProjectionMatrix();
   }
 
+  /** Switch between day and night lighting. */
+  setNight(night: boolean): void {
+    this.night = night;
+    (this.scene.background as Color).set(night ? NIGHT_SKY : SKY);
+    (this.scene.fog as Fog).color.set(night ? NIGHT_HAZE : HAZE);
+    this.sky.intensity = night ? 0.22 : 1.5;
+    // The same light plays the sun by day and the moon by night.
+    this.sun.intensity = night ? 0.25 : 2.6;
+    this.sun.color.set(night ? 0x9fb4ff : 0xfff1d8);
+  }
+
+  get isNight(): boolean {
+    return this.night;
+  }
+
+  /** Light the traffic signal lamps. */
+  setSignals(stateOf: (junction: string, group: string) => SignalState): void {
+    this.map.setSignals(stateOf);
+  }
+
+  /** What the last frame cost, for the performance report. */
+  get drawStats(): { calls: number; triangles: number; meshes: number } {
+    const r = this.renderer.info.render;
+    return { calls: r.calls, triangles: r.triangles, meshes: this.map.stats.meshes };
+  }
+
   /** Next frame, put the chase camera straight behind the car (after a reset). */
   snapCamera(): void {
     this.chaseReady = false;
@@ -182,6 +229,8 @@ export class GameRenderer {
     }
     car.steeringWheel.rotation.z = -view.steer * STEERING_WHEEL_LOCK;
     car.setLights(view.lights);
+    const beam = view.lights.head ? (this.night ? 60 : 4) : 0;
+    for (const lamp of this.headlamps) lamp.intensity = beam;
 
     for (let i = 0; i < loose.length; i++) {
       const m = this.map.cones[i];

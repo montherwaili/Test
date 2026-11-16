@@ -1,0 +1,42 @@
+{
+  "id": "town",
+  "groundSize": 760,
+  "laneWidth": 3.5,
+  "medianWidth": 2,
+  "seed": 20261,
+  "intersections": [
+    { "id": "A1", "x": -140, "z": -140, "type": "bend" },
+    { "id": "B1", "x": 0, "z": -140, "type": "roundabout", "ringLanes": 1 },
+    { "id": "C1", "x": 140, "z": -140, "type": "bend" },
+    { "id": "A2", "x": -140, "z": 0, "type": "signal" },
+    { "id": "B2", "x": 0, "z": 0, "type": "roundabout", "ringLanes": 2 },
+    { "id": "C2", "x": 140, "z": 0, "type": "signal" },
+    { "id": "A3", "x": -140, "z": 140, "type": "bend" },
+    { "id": "B3", "x": 0, "z": 140, "type": "priority", "stopArm": "N" },
+    { "id": "C3", "x": 140, "z": 140, "type": "bend" },
+    { "id": "P", "x": 215, "z": 0, "type": "end" }
+  ],
+  "roads": [
+    { "id": "n1", "from": "A1", "to": "B1", "lanes": 1, "limit": 40, "features": [{ "type": "crossing", "at": 70 }] },
+    { "id": "n2", "from": "B1", "to": "C1", "lanes": 1, "limit": 40, "features": [{ "type": "bump", "at": 60 }, { "type": "bump", "at": 85 }] },
+    { "id": "w1", "from": "A1", "to": "A2", "lanes": 1, "limit": 40, "features": [{ "type": "hill", "at": 25, "gradePercent": 9, "rampLength": 30, "plateauLength": 18 }] },
+    { "id": "w2", "from": "A2", "to": "A3", "lanes": 1, "limit": 40, "features": [{ "type": "bump", "at": 70 }] },
+    { "id": "e1", "from": "C1", "to": "C2", "lanes": 1, "limit": 40, "features": [{ "type": "crossing", "at": 70 }] },
+    { "id": "e2", "from": "C2", "to": "C3", "lanes": 1, "limit": 40 },
+    { "id": "s1", "from": "A3", "to": "B3", "lanes": 1, "limit": 40, "features": [{ "type": "bump", "at": 50 }, { "type": "crossing", "at": 95 }] },
+    { "id": "s2", "from": "B3", "to": "C3", "lanes": 1, "limit": 40 },
+    { "id": "av1", "from": "A2", "to": "B2", "lanes": 2, "limit": 60 },
+    { "id": "av2", "from": "B2", "to": "C2", "lanes": 2, "limit": 60 },
+    { "id": "c1", "from": "B1", "to": "B2", "lanes": 1, "limit": 50 },
+    { "id": "c2", "from": "B2", "to": "B3", "lanes": 1, "limit": 50, "features": [{ "type": "crossing", "at": 85 }] },
+    { "id": "pk", "from": "C2", "to": "P", "lanes": 1, "limit": 20, "sidewalks": false, "features": [{ "type": "parking", "at": 20, "count": 12 }] }
+  ],
+  "spawn": { "lane": "av1:f0", "at": 12 },
+  "blocks": [
+    { "x0": -124, "z0": -124, "x1": -16, "z1": -16, "density": 0.55 },
+    { "x0": 16, "z0": -124, "x1": 124, "z1": -16, "density": 0.5 },
+    { "x0": -124, "z0": 16, "x1": -16, "z1": 124, "density": 0.5 },
+    { "x0": 16, "z0": 16, "x1": 124, "z1": 124, "density": 0 }
+  ],
+  "mosques": [{ "x": 70, "z": -70, "headingDeg": 180 }]
+}

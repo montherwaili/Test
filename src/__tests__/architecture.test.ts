@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * The simulation and the examiner must stay free of rendering, browser and UI
- * code, so they can run headless (tests, replays, scripted drives).
- * This test reads their source and fails on a forbidden import or global.
+ * The simulation, the examiner and the road network must stay free of
+ * rendering, browser, UI and physics-engine code, so they can run headless
+ * (tests, replays, scripted drives). This test reads their source and fails
+ * on a forbidden import or global.
  */
-const sources = import.meta.glob(['../sim/**/*.ts', '../examiner/**/*.ts'], {
+const sources = import.meta.glob(['../sim/**/*.ts', '../examiner/**/*.ts', '../world/roads/**/*.ts'], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -15,7 +16,10 @@ const FORBIDDEN_IMPORTS = [
   /from\s+['"]three['"]/,
   /from\s+['"]three\//,
   /from\s+['"]@dimforge\//,
-  /from\s+['"](\.\.\/)+(render|ui|input|debug|app|world|traffic)\b/,
+  /from\s+['"](\.\.\/)+(render|ui|input|debug|app)\b/,
+  // The road network (world/roads) is pure and may be used; the rest of world is engine-bound.
+  /from\s+['"](\.\.\/)+world\/(?!roads\/)/,
+  /from\s+['"]\.\.\/(physics|map|town)['"]/,
 ];
 
 const FORBIDDEN_GLOBALS = [
@@ -31,8 +35,9 @@ const FORBIDDEN_GLOBALS = [
 describe('architecture', () => {
   const files = Object.entries(sources).filter(([path]) => !path.includes('__tests__'));
 
-  it('finds the sim sources', () => {
-    expect(files.length).toBeGreaterThan(5);
+  it('finds the pure sources', () => {
+    expect(files.length).toBeGreaterThan(12);
+    expect(files.some(([path]) => path.includes('world/roads/'))).toBe(true);
   });
 
   it.each(files)('%s has no rendering / UI imports', (_path, code) => {

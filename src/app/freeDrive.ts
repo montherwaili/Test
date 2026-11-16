@@ -25,6 +25,9 @@ import { Hud } from '../ui/hud';
 import type { StringKey } from '../ui/i18n';
 import { buildMap, type MapDef } from '../world/map';
 import { PhysicsWorld, initPhysics } from '../world/physics';
+import type { RoadNetwork } from '../world/roads/network';
+import { signalState } from '../world/roads/signals';
+import { buildTown } from '../world/town';
 
 const CAMERA_NAMES: Record<(typeof CAMERA_MODES)[number], StringKey> = {
   chase: 'camChase',
@@ -75,6 +78,7 @@ export interface FreeDrive {
   renderer: GameRenderer;
   /** Frames drawn and simulation steps run so far. */
   stats: { frames: number; steps: number; fps: number };
+  network: RoadNetwork | null;
 }
 
 export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement): Promise<FreeDrive> {
@@ -82,7 +86,10 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
 
   const tuning = createDefaultTuning();
   const physics = new PhysicsWorld(tuning.sim.stepHz, tuning.body.gravity);
-  const map = buildMap(testTrack as MapDef, physics);
+  // The town by default; ?map=track gives the bare test track from phase 2.
+  const wantTrack = new URLSearchParams(location.search).get('map') === 'track';
+  const map = wantTrack ? buildMap(testTrack as MapDef, physics) : buildTown(physics);
+  const network = map.network;
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
   const vehicle = new Vehicle(tuning, car.port, physics.ground);
   const ancillaries = new Ancillaries();
@@ -98,6 +105,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const hud = new Hud(app, {
     onCamera: () => handle({ type: 'camera' }),
     onReset: () => handle({ type: 'reset' }),
+    onNight: () => handle({ type: 'night' }),
   });
 
   // Poses either side of "now", for smooth drawing between fixed steps.
@@ -168,6 +176,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       case 'help':
         hud.toggleHelp();
         break;
+      case 'night':
+        renderer.setNight(!renderer.isNight);
+        break;
     }
   }
 
@@ -186,6 +197,15 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   }
 
   const stats = { frames: 0, steps: 0, fps: 60 };
+
+  // Where the car is on the road network (looked up a few times a second, not every frame).
+  let speedLimit: number | null = null;
+  let locateIn = 0;
+  const here = { x: 0, z: 0 };
+  const signalNow = (junction: string, group: string) => {
+    const plan = network?.signals.get(junction);
+    return plan ? signalState(plan, group, vehicle.time) : 'red';
+  };
 
   function simStep(dt: number): void {
     const roadSpeed = Math.abs(vehicle.telemetry.wheelSpeed);
@@ -261,6 +281,17 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       Object.assign(loose[i]!.position, b.translation());
       Object.assign(loose[i]!.rotation, b.rotation());
     }
+    if (network) {
+      renderer.setSignals(signalNow);
+      locateIn -= elapsed;
+      if (locateIn <= 0) {
+        locateIn = 0.2;
+        here.x = currPos.x;
+        here.z = currPos.z;
+        const at = network.locate(here, (vehicle.telemetry.heading * 180) / Math.PI, 4);
+        speedLimit = at ? at.lane.speedLimit : null;
+      }
+    }
     renderer.render(view, loose, elapsed);
 
     const tm = vehicle.telemetry;
@@ -278,6 +309,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       lampLeft: lamps.left,
       lampRight: lamps.right,
       camera: CAMERA_NAMES[renderer.mode],
+      speedLimit,
     });
     touch.update({
       throttle: controls.throttle,
@@ -304,5 +336,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   hud.say('msgStartHint', 8);
   requestAnimationFrame(frame);
 
-  return { vehicle, controls, ancillaries, renderer, stats };
+  return { vehicle, controls, ancillaries, renderer, stats, network };
 }
