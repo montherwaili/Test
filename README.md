@@ -44,9 +44,12 @@ handbrake, give a little gas and bring the clutch up slowly.
 | `Backspace` | put the car back at the start |
 | `F1` | help |
 
-On a touch screen: steering pad and gear selector on the left, clutch / brake /
-gas pedals and buttons on the right. Several fingers work at once. Landscape is
-easier.
+On a touch screen the controls are laid out for two thumbs. Left thumb: clutch
+pedal, steering wheel and indicators. Right thumb: brake, gas and the gear
+lever. The steering wheel turns by dragging around it; it stays put while the
+car is stopped and straightens as it rolls. The clutch pedal stays where you
+leave it, so you can hold it at the bite point and move your thumb to the
+wheel. Landscape is easier.
 
 The test track has a two-lane road with a stop line and speed bumps, a 10% hill,
 a kerb, loose cones, two parking bays marked with poles, and two circles for

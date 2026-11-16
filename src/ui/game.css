@@ -45,6 +45,13 @@ body {
   position: fixed;
   inset: 0;
   touch-action: none;
+  /* Screen edges (clear of notches) and control sizes, shared by HUD and controls. */
+  --edge-x: max(12px, env(safe-area-inset-left, 0px));
+  --edge-r: max(12px, env(safe-area-inset-right, 0px));
+  --edge-b: max(12px, env(safe-area-inset-bottom, 0px));
+  --pedal-h: clamp(120px, 42vh, 240px);
+  --pedal-w: clamp(56px, 10vw, 92px);
+  --wheel: clamp(120px, 40vh, 210px);
 }
 
 #view {
@@ -141,7 +148,7 @@ a:focus-visible {
 }
 
 .dials {
-  width: 190px;
+  width: 220px;
 }
 
 .rpm-bar {
@@ -221,7 +228,7 @@ a:focus-visible {
 
 .lamps {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
   margin-top: 6px;
   min-height: 20px;
@@ -229,9 +236,9 @@ a:focus-visible {
 
 .lamp {
   display: none;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 1px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid currentColor;
   white-space: nowrap;
@@ -260,7 +267,7 @@ a:focus-visible {
 
 .toast {
   position: absolute;
-  top: 22%;
+  top: 34%;
   left: 50%;
   transform: translateX(-50%);
   max-width: min(90vw, 520px);
@@ -360,10 +367,15 @@ a:focus-visible {
 
 .help-foot {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   margin-top: 16px;
+}
+
+.help-foot a {
+  margin-inline-end: auto;
 }
 
 .help-foot a {
@@ -376,12 +388,6 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  --edge-x: max(12px, env(safe-area-inset-left, 0px));
-  --edge-r: max(12px, env(safe-area-inset-right, 0px));
-  --edge-b: max(12px, env(safe-area-inset-bottom, 0px));
-  --pedal-h: clamp(120px, 40vh, 240px);
-  --pedal-w: clamp(54px, 9.5vw, 84px);
-  --steer-h: clamp(86px, 26vh, 130px);
 }
 
 .controls > * {
@@ -397,14 +403,24 @@ a:focus-visible {
 /* Pedals: small gauges on a desktop... */
 .pedals {
   position: absolute;
-  right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  bottom: var(--edge-b);
   display: flex;
   gap: 8px;
   padding: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+}
+
+.pedals-right {
+  right: var(--edge-r);
+  border-radius: 0 12px 12px 0;
+  border-left: 0;
+}
+
+.pedals-left {
+  right: calc(var(--edge-r) + 113px);
+  border-radius: 12px 0 0 12px;
+  border-right: 0;
 }
 
 .pedal {
@@ -461,19 +477,24 @@ a:focus-visible {
   outline: 2px solid var(--ink);
 }
 
-.steer-pad,
+.wheel-box,
 .gears,
 .buttons {
   display: none;
 }
 
-/* ...and full-size controls on a touch screen: steering and gears under the
-   left thumb, pedals and buttons under the right, the middle left clear. */
+/* ...and full-size controls on a touch screen.
+   Left thumb: clutch, wheel, indicators. Right thumb: brake, gas, gears. */
 .touch .pedals {
-  right: var(--edge-r);
-  bottom: var(--edge-b);
   gap: 10px;
   padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.touch .pedals-left {
+  left: var(--edge-x);
+  right: auto;
 }
 
 .touch .pedal {
@@ -484,36 +505,91 @@ a:focus-visible {
   height: var(--pedal-h);
 }
 
-.touch .steer-pad {
+.touch .wheel-box {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
   position: absolute;
-  left: var(--edge-x);
+  left: calc(var(--edge-x) + var(--pedal-w) + 32px);
   bottom: var(--edge-b);
-  width: clamp(170px, 34vw, 320px);
-  height: var(--steer-h);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
+}
+
+.wheel {
+  width: var(--wheel);
+  height: var(--wheel);
+  border-radius: 50%;
   touch-action: none;
+  background: var(--panel);
 }
 
-.touch .steer-pad .ctl-label {
-  position: absolute;
-  top: 6px;
-}
-
-.steer-knob {
-  width: 30%;
-  height: 56%;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.82);
+.wheel-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: calc(var(--wheel) * 0.11) solid rgba(244, 243, 238, 0.9);
   will-change: transform;
 }
 
-.steer-pad.active {
-  border-color: var(--ink);
+.wheel.active .wheel-face {
+  border-color: #fff;
+}
+
+.wheel-spoke {
+  position: absolute;
+  background: rgba(244, 243, 238, 0.9);
+  border-radius: 4px;
+}
+
+.wheel-spoke-h {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 12%;
+  transform: translateY(-50%);
+}
+
+.wheel-spoke-v {
+  left: 50%;
+  top: 50%;
+  bottom: 0;
+  width: 12%;
+  transform: translateX(-50%);
+}
+
+.wheel-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34%;
+  height: 34%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #2a2d33;
+  border: 2px solid rgba(244, 243, 238, 0.9);
+}
+
+/* A mark at 12 o'clock so it is obvious when the wheels are straight. */
+.wheel-mark {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--wheel) * -0.11);
+  width: 10%;
+  height: calc(var(--wheel) * 0.11);
+  transform: translateX(-50%);
+  background: var(--bad);
+  border-radius: 2px;
+}
+
+.indicators {
+  display: flex;
+  gap: 6px;
+}
+
+.indicators .ctl-btn {
+  width: calc(var(--wheel) / 3 - 4px);
+  font-size: 16px;
 }
 
 .touch .gears {
@@ -521,8 +597,10 @@ a:focus-visible {
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
   position: absolute;
-  left: var(--edge-x);
-  bottom: calc(var(--edge-b) + var(--steer-h) + 10px);
+  right: var(--edge-r);
+  /* Sits on top of the pedal block (track + label + padding). */
+  bottom: calc(var(--edge-b) + var(--pedal-h) + 56px);
+  width: calc(var(--pedal-w) * 2 + 32px);
   padding: 7px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -530,7 +608,6 @@ a:focus-visible {
 }
 
 .gear-btn {
-  width: clamp(38px, 6.4vw, 50px);
   height: clamp(30px, 8.5vh, 44px);
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -541,7 +618,6 @@ a:focus-visible {
 
 .gear-n {
   grid-column: 1 / -1;
-  width: 100%;
   height: clamp(26px, 6.5vh, 34px);
 }
 
@@ -551,28 +627,65 @@ a:focus-visible {
 }
 
 .touch .buttons {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 6px;
   position: absolute;
-  right: var(--edge-r);
-  /* Sits on top of the pedal block (track + label + padding). */
-  bottom: calc(var(--edge-b) + var(--pedal-h) + 56px);
-  width: calc(var(--pedal-w) * 3 + 42px);
+}
+
+.touch .buttons-main {
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  bottom: var(--edge-b);
+  left: calc(var(--edge-x) + var(--pedal-w) + var(--wheel) + 44px);
+  right: calc(var(--edge-r) + var(--pedal-w) * 2 + 44px);
+}
+
+.touch .buttons-main .ctl-btn {
+  min-height: 44px;
+  padding-inline: 14px;
+}
+
+/* Under the top bar, on the left whatever the language (the gear lever has the right). */
+.touch .buttons-extra {
+  top: calc(max(8px, env(safe-area-inset-top, 0px)) + 38px);
+  left: var(--edge-x);
+}
+
+.touch .topbar {
+  inset-inline-start: auto;
+  left: var(--edge-x);
+  max-width: calc(50vw - 118px);
+}
+
+/* On a phone, reset and the language switch live in the help panel instead. */
+.touch .topbar .btn-lang,
+.touch .topbar .btn-reset {
+  display: none;
+}
+
+.touch .hud-btn {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.cam-prefix::after {
+  content: ': ';
+}
+
+.touch .cam-prefix {
+  display: none;
 }
 
 .ctl-btn {
-  min-width: 0;
-  min-height: 36px;
-  padding: 4px 4px;
+  min-width: 44px;
+  min-height: 38px;
+  padding: 4px 10px;
   border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--panel);
   font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ctl-btn.on {
@@ -600,26 +713,37 @@ a:focus-visible {
   .touch .rotate-hint {
     display: block;
   }
-  .topbar {
+  .touch .topbar {
     max-width: none;
   }
   .cluster {
     top: calc(max(8px, env(safe-area-inset-top, 0px)) + 44px);
   }
-  .controls {
-    --pedal-h: 150px;
-    --pedal-w: 15vw;
-    --steer-h: 96px;
+  .rotate-hint {
+    top: 46%;
   }
-  .touch .steer-pad {
-    width: 40vw;
+  #app {
+    --pedal-h: 150px;
+    --pedal-w: 14vw;
+    --wheel: 34vw;
+  }
+  .touch .wheel-box {
+    left: calc(var(--edge-x) + var(--pedal-w) + 26px);
+  }
+  .touch .buttons-main {
+    left: var(--edge-x);
+    right: auto;
+    bottom: calc(var(--edge-b) + var(--wheel) + 100px);
+  }
+  .touch .buttons-extra {
+    top: calc(max(8px, env(safe-area-inset-top, 0px)) + 180px);
   }
 }
 
 /* Short landscape phones: keep the cluster compact. */
 @media (max-height: 430px) {
   .dials {
-    width: 160px;
+    width: 210px;
   }
   .speed {
     font-size: 30px;
@@ -627,12 +751,32 @@ a:focus-visible {
   .gear {
     font-size: 22px;
   }
-  .hud-btn {
-    padding: 4px 9px;
-    font-size: 12px;
-  }
   .toast {
-    top: 30%;
+    top: 40%;
     font-size: 14px;
+  }
+}
+
+/* The smallest phones held sideways: shrink the instruments so nothing overlaps. */
+@media (max-width: 720px) and (orientation: landscape) {
+  .dials {
+    width: 180px;
+  }
+  .lamp {
+    font-size: 9.5px;
+    padding: 0 4px;
+  }
+  .arrow {
+    font-size: 16px;
+  }
+  .cluster {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+  .touch .buttons-extra .ctl-btn {
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 7px;
+    font-size: 12px;
   }
 }

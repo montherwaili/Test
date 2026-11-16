@@ -110,6 +110,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     car.place(map.spawn.position, map.spawn.heading);
     vehicle.resetSolver();
     filter.reset();
+    touch.reset();
     controls.gear = GEAR_NEUTRAL;
     controls.handbrake = 1;
     vehicle.powertrain.state.gear = GEAR_NEUTRAL;
@@ -187,7 +188,10 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const stats = { frames: 0, steps: 0, fps: 60 };
 
   function simStep(dt: number): void {
-    filter.update(dt, keyboard.held, touch.state.analog, Math.abs(vehicle.telemetry.speed), tuning.clutch);
+    const roadSpeed = Math.abs(vehicle.telemetry.wheelSpeed);
+    touch.tick(dt, roadSpeed);
+    if (keyboard.held.clutch) touch.releaseClutch();
+    filter.update(dt, keyboard.held, touch.state.analog, roadSpeed, tuning.clutch);
     controls.throttle = filter.throttle;
     controls.brake = filter.brake;
     controls.clutch = filter.clutch;

@@ -45,6 +45,9 @@ export class Hud {
   private readonly lamps: Record<'engine' | 'handbrake' | 'seatbelt' | 'lights', HTMLElement>;
   private readonly toast: HTMLElement;
   private readonly cameraButton: HTMLButtonElement;
+  private readonly cameraName: HTMLElement;
+  private readonly switchLang: () => void;
+  private readonly onReset: () => void;
   private readonly helpPanel: HTMLElement;
   private readonly labelled: [HTMLElement, StringKey][] = [];
   private toastTimer = 0;
@@ -60,8 +63,15 @@ export class Hud {
     this.cameraButton = el('button', 'hud-btn', top);
     this.cameraButton.type = 'button';
     this.cameraButton.addEventListener('click', callbacks.onCamera);
-    this.button(top, 'reset', callbacks.onReset);
-    this.button(top, 'language', () => setLang(getLang() === 'ar' ? 'en' : 'ar'));
+    // "Camera: " is dropped on small screens, leaving just the view's name.
+    const cameraPrefix = el('span', 'cam-prefix', this.cameraButton);
+    this.label(cameraPrefix, 'camera');
+    this.cameraName = el('span', '', this.cameraButton);
+    this.button(top, 'reset', callbacks.onReset).classList.add('btn-reset');
+    this.onReset = callbacks.onReset;
+    const switchLang = () => setLang(getLang() === 'ar' ? 'en' : 'ar');
+    this.button(top, 'language', switchLang).classList.add('btn-lang');
+    this.switchLang = switchLang;
 
     // --- instrument cluster ------------------------------------------------------
     const cluster = el('div', 'cluster', this.root);
@@ -136,7 +146,7 @@ export class Hud {
     }
     if (s.camera !== this.last.camera) {
       this.last.camera = s.camera;
-      this.cameraButton.textContent = `${t('camera')}: ${t(s.camera)}`;
+      this.cameraName.textContent = t(s.camera);
     }
   }
 
@@ -183,6 +193,11 @@ export class Hud {
     const link = el('a', '', foot);
     link.href = './debug.html';
     this.label(link, 'debugLink');
+    this.button(foot, 'reset', () => {
+      this.toggleHelp(false);
+      this.onReset();
+    });
+    this.button(foot, 'language', this.switchLang);
     const close = this.button(foot, 'close', () => this.toggleHelp(false));
     close.classList.add('primary');
     panel.addEventListener('click', (e) => {
