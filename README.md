@@ -49,9 +49,11 @@ handbrake, give a little gas and bring the clutch up slowly.
 On a touch screen the controls are laid out for two thumbs. Left thumb: clutch
 pedal, steering wheel and indicators. Right thumb: brake, gas and the gear
 lever. The steering wheel turns by dragging around it; it stays put while the
-car is stopped and straightens as it rolls. The clutch pedal stays where you
-leave it, so you can hold it at the bite point and move your thumb to the
-wheel. Landscape is easier.
+car is stopped and straightens as it rolls. The gear lever is dragged through
+an H gate (1 3 5 at the top, 2 4 R at the bottom, neutral across the middle);
+let go part way into a slot and it springs back to neutral. All three pedals
+spring back when you lift your finger; the clutch comes up quickly to the bite
+point and then eases through it, as a foot would. Landscape is easier.
 
 The town (the default map) has a two-lane avenue with a double-lane
 roundabout in the middle and signalled junctions at each end, a ring road with

@@ -364,6 +364,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       clutch: controls.clutch,
       steer: controls.steer,
       lever: controls.gear,
+      engaged: gear,
       handbrake: controls.handbrake > 0,
       seatbelt: ancillaries.state.seatbelt,
       indicator: ancillaries.state.indicator,

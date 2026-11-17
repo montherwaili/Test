@@ -5,16 +5,18 @@
  *   right thumb - brake and gas (one foot does both, as in a car), gear lever
  *
  * The steering wheel turns by dragging around it, stays put when the car is
- * stopped and straightens as it rolls. The clutch pedal stays where it is
- * left, so the thumb can go back to the wheel with the clutch held at the
- * bite point. Every control captures its own pointer, so fingers do not
- * interfere with each other.
+ * stopped and straightens as it rolls. All three pedals spring back when the
+ * finger lifts (the clutch comes up quickly to the bite point, then eases
+ * through it, as a driver's foot would). The gear lever is dragged through an
+ * H gate. Every control captures its own pointer, so fingers do not interfere
+ * with each other.
  *
  * On a mouse-and-keyboard device the pedals are shown small, as gauges.
  */
 import type { ClutchTuning } from '../sim/tuning';
 import type { AnalogInput } from './inputFilter';
 import type { Action } from './keyboard';
+import { GearLeverModel, gearSlots } from './gearLever';
 import { SteeringWheelModel, WHEEL_LOCK } from './steeringWheel';
 import { onLangChange, t, type StringKey } from '../ui/i18n';
 
@@ -31,6 +33,8 @@ export interface TouchDisplay {
   steer: number;
   /** Gear the lever is asking for. */
   lever: number;
+  /** Gear actually engaged in the gearbox. */
+  engaged: number;
   handbrake: boolean;
   seatbelt: boolean;
   indicator: 'off' | 'left' | 'right' | 'hazard';
@@ -53,7 +57,9 @@ export class TouchControls {
   private readonly fills = {} as Record<PedalName, HTMLElement>;
   private readonly wheel = new SteeringWheelModel();
   private readonly wheelFace: HTMLElement;
-  private readonly gearButtons = new Map<number, HTMLButtonElement>();
+  private readonly lever = new GearLeverModel();
+  private readonly knob: HTMLElement;
+  private readonly gearLabels = new Map<number, HTMLElement>();
   private readonly toggles: Partial<Record<'handbrake' | 'seatbelt' | 'left' | 'right' | 'hazard', HTMLButtonElement>> = {};
   private readonly labelled: [HTMLElement, StringKey][] = [];
 
@@ -63,7 +69,7 @@ export class TouchControls {
     this.root.dir = 'ltr';
 
     // --- left thumb: clutch, steering wheel, indicators ------------------------
-    const pedal = (parent: HTMLElement, name: PedalName, key: StringKey, latching: boolean) => {
+    const pedal = (parent: HTMLElement, name: PedalName, key: StringKey) => {
       const p = el('div', `pedal pedal-${name}`, parent);
       const track = el('div', 'pedal-track', p);
       if (name === 'clutch') {
@@ -83,14 +89,13 @@ export class TouchControls {
       this.drag(p, {
         down: set,
         move: set,
-        up: () => {
-          if (!latching) delete this.state.analog[name];
-        },
+        // Lift the finger and the pedal springs back (the input filter eases the clutch through its bite).
+        up: () => delete this.state.analog[name],
       });
     };
 
     const left = el('div', 'pedals pedals-left', this.root);
-    pedal(left, 'clutch', 'clutch', true);
+    pedal(left, 'clutch', 'clutch');
 
     const wheelBox = el('div', 'wheel-box', this.root);
     const indicators = el('div', 'indicators', wheelBox);
@@ -122,22 +127,61 @@ export class TouchControls {
 
     // --- right thumb: brake, gas, gear lever ---------------------------------------
     const right = el('div', 'pedals pedals-right', this.root);
-    pedal(right, 'brake', 'brake', false);
-    pedal(right, 'throttle', 'gas', false);
+    pedal(right, 'brake', 'brake');
+    pedal(right, 'throttle', 'gas');
 
-    const gears = el('div', 'gears', this.root);
-    for (const g of [1, 3, 5, 2, 4, -1]) {
-      const b = el('button', 'gear-btn', gears);
-      b.type = 'button';
-      b.textContent = g === -1 ? 'R' : String(g);
-      b.addEventListener('click', () => this.onAction({ type: 'gear', gear: g }));
-      this.gearButtons.set(g, b);
+    // Gear lever in an H gate: drag the knob along the gate.
+    const gate = el('div', 'shifter', this.root);
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('class', 'shifter-gate');
+    // Gate slots: three columns joined by the neutral rail.
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M20 25 V75 M50 25 V75 M80 25 V75 M20 50 H80');
+    svg.append(path);
+    gate.append(svg);
+    // Slots run from 25% to 75% of the height; the numbers sit beyond their ends.
+    const toPct = (gx: number, gy: number) => ({ left: 50 + gx * 30, top: 50 + gy * 25 });
+    for (const slot of gearSlots()) {
+      const label = el('span', 'shifter-label', gate);
+      label.textContent = slot.gear === -1 ? 'R' : String(slot.gear);
+      const p = toPct(slot.x, slot.y);
+      label.style.left = `${p.left}%`;
+      label.style.top = `${slot.y < 0 ? p.top - 13 : p.top + 13}%`;
+      this.gearLabels.set(slot.gear, label);
     }
-    const neutral = el('button', 'gear-btn gear-n', gears);
-    neutral.type = 'button';
-    neutral.textContent = 'N';
-    neutral.addEventListener('click', () => this.onAction({ type: 'gear', gear: 0 }));
-    this.gearButtons.set(0, neutral);
+    const nLabel = el('span', 'shifter-label shifter-n', gate);
+    nLabel.textContent = 'N';
+    this.gearLabels.set(0, nLabel);
+    this.knob = el('div', 'shifter-knob', gate);
+    const gateXY = (e: PointerEvent): [number, number] => {
+      const r = gate.getBoundingClientRect();
+      return [((e.clientX - r.left) / r.width - 0.5) / 0.3, ((e.clientY - r.top) / r.height - 0.5) / 0.25];
+    };
+    let sent = this.lever.gear;
+    const send = () => {
+      if (this.lever.gear !== sent) {
+        sent = this.lever.gear;
+        this.onAction({ type: 'gear', gear: sent });
+      }
+    };
+    this.drag(gate, {
+      down: (e) => {
+        sent = this.lever.gear;
+        this.lever.grab();
+        this.lever.drag(...gateXY(e));
+        send();
+      },
+      move: (e) => {
+        this.lever.drag(...gateXY(e));
+        send();
+      },
+      up: () => {
+        this.lever.release();
+        send();
+      },
+    });
 
     // --- the rest ------------------------------------------------------------------
     // Needed for every move-off: between the thumbs. Needed now and then: out of the way, top left.
@@ -180,6 +224,8 @@ export class TouchControls {
   /** Centre the wheel and lift every pedal (the car has been reset). */
   reset(): void {
     this.wheel.reset();
+    this.lever.release();
+    this.lever.setGear(0);
     this.state.analog = {};
   }
 
@@ -189,7 +235,16 @@ export class TouchControls {
     this.fills.brake.style.height = `${d.brake * 100}%`;
     this.fills.clutch.style.height = `${d.clutch * 100}%`;
     this.wheelFace.style.transform = `rotate(${d.steer * WHEEL_LOCK}rad)`;
-    for (const [g, b] of this.gearButtons) b.classList.toggle('on', g === d.lever);
+    this.lever.setGear(d.lever);
+    this.knob.style.left = `${50 + this.lever.x * 30}%`;
+    this.knob.style.top = `${50 + this.lever.y * 25}%`;
+    // The knob carries the number of the gear it is in.
+    const g = this.lever.gear;
+    const text = g === 0 ? 'N' : g === -1 ? 'R' : String(g);
+    if (this.knob.textContent !== text) this.knob.textContent = text;
+    // Lever in a gear that the gearbox refused (clutch not pressed): show it as not engaged.
+    this.knob.classList.toggle('pending', d.lever !== d.engaged);
+    for (const [g, label] of this.gearLabels) label.classList.toggle('on', g === d.engaged);
     this.toggles.handbrake!.classList.toggle('on', d.handbrake);
     this.toggles.seatbelt!.classList.toggle('on', d.seatbelt);
     this.toggles.left!.classList.toggle('on', d.indicator === 'left');

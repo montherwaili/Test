@@ -500,7 +500,7 @@ a:focus-visible {
 }
 
 .wheel-box,
-.gears,
+.shifter,
 .buttons {
   display: none;
 }
@@ -614,38 +614,82 @@ a:focus-visible {
   font-size: 16px;
 }
 
-.touch .gears {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+/* Gear lever in an H gate, above brake and gas. */
+.touch .shifter {
+  display: block;
   position: absolute;
   right: var(--edge-r);
-  /* Sits on top of the pedal block (track + label + padding). */
   bottom: calc(var(--edge-b) + var(--pedal-h) + 56px);
   width: calc(var(--pedal-w) * 2 + 32px);
-  padding: 7px;
+  height: calc(var(--pedal-w) * 1.6 + 40px);
+  max-height: 36vh;
+  min-height: 110px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
+  touch-action: none;
 }
 
-.gear-btn {
-  height: clamp(30px, 8.5vh, 44px);
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.08);
-  font-weight: 700;
-  font-size: 16px;
+.shifter-gate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.gear-n {
-  grid-column: 1 / -1;
-  height: clamp(26px, 6.5vh, 34px);
+.shifter-gate path {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 9;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
-.gear-btn.on {
-  background: var(--ink);
+.shifter-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.shifter-label.on {
+  color: var(--ink);
+}
+
+.shifter-n {
+  left: 50%;
+  top: 50%;
+  margin-top: -16px;
+  font-size: 11px;
+}
+
+.shifter-knob {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
   color: #16181d;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 30%, #fafafa, #b9bcc0 60%, #6f7378);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  transition: left 0.08s, top 0.08s;
+}
+
+.shifter.active .shifter-knob {
+  transition: none;
+  box-shadow: 0 0 0 3px var(--ink), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* In a gear the gearbox did not take (clutch not pressed). */
+.shifter-knob.pending {
+  box-shadow: 0 0 0 3px var(--warn), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .touch .buttons {
