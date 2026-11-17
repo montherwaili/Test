@@ -46,6 +46,7 @@ export interface CarBody {
 
 export interface LooseBody {
   readonly body: RAPIER.RigidBody;
+  readonly handle: number;
 }
 
 export interface Mover {
@@ -59,6 +60,10 @@ export class PhysicsWorld {
   readonly world: RAPIER.World;
   readonly ground: GroundPort;
   private readonly ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+
+  private readonly eventQueue = new RAPIER.EventQueue(true);
+  /** Pairs of colliders that started touching since contacts were last taken. */
+  private started: [number, number][] = [];
 
   constructor(stepHz: number, gravity = 9.81) {
     this.world = new RAPIER.World({ x: 0, y: -gravity, z: 0 });
@@ -113,11 +118,11 @@ export class PhysicsWorld {
         .setLinearDamping(0.3)
         .setAngularDamping(0.8),
     );
-    this.world.createCollider(
+    const collider = this.world.createCollider(
       RAPIER.ColliderDesc.cone(height / 2, radius).setMass(mass).setFriction(0.7).setRestitution(0.1),
       body,
     );
-    return { body };
+    return { body, handle: collider.handle };
   }
 
   /**
@@ -205,7 +210,23 @@ export class PhysicsWorld {
   }
 
   step(): void {
-    this.world.step();
+    this.world.step(this.eventQueue);
+    this.eventQueue.drainCollisionEvents((a, b, started) => {
+      if (started) this.started.push([a, b]);
+    });
+    // Nobody is listening: do not let the list grow for ever.
+    if (this.started.length > 256) this.started.splice(0, this.started.length - 256);
+  }
+
+  /** Colliders that started touching `handle` since the last call (clears the record). */
+  takeContacts(handle: number): number[] {
+    const out: number[] = [];
+    for (const [a, b] of this.started) {
+      if (a === handle) out.push(b);
+      else if (b === handle) out.push(a);
+    }
+    this.started.length = 0;
+    return out;
   }
 
   free(): void {

@@ -303,6 +303,43 @@ a:focus-visible {
   pointer-events: none;
 }
 
+.right-car {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  z-index: 3;
+}
+
+.toast[data-tone='minor'] {
+  border-color: var(--warn);
+}
+
+.toast[data-tone='serious'] {
+  border-color: #ff7a45;
+  background: #3a1a10;
+}
+
+.toast[data-tone='fail'] {
+  border-color: var(--bad);
+  background: #4a1414;
+}
+
+.toast[data-tone='good'] {
+  border-color: var(--good);
+}
+
+.fault-count {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--warn);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .rotate-hint {
   display: none;
   position: absolute;
@@ -713,6 +750,8 @@ a:focus-visible {
 
 /* Under the top bar, on the left whatever the language (the gear lever has the right). */
 .touch .buttons-extra {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
   top: calc(max(8px, env(safe-area-inset-top, 0px)) + 38px);
   left: var(--edge-x);
 }

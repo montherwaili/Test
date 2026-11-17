@@ -22,6 +22,11 @@ export interface HudState {
 }
 
 export interface HudCallbacks {
+  /** Switch between the town and the test yard. */
+  onSwitchMap: () => void;
+  /** Which map is showing, so the switch button names the other one. */
+  map: 'town' | 'yard' | 'track';
+  onRightCar: () => void;
   onCamera: () => void;
   onReset: () => void;
   onNight: () => void;
@@ -48,6 +53,9 @@ export class Hud {
   private readonly arrowRight: HTMLElement;
   private readonly lamps: Record<'engine' | 'handbrake' | 'seatbelt' | 'lights', HTMLElement>;
   private readonly toast: HTMLElement;
+  private readonly faultCount: HTMLElement;
+  private counts = { minor: 0, serious: 0, fail: 0 };
+  private readonly rightButton: HTMLButtonElement;
   private readonly cameraButton: HTMLButtonElement;
   private readonly cameraName: HTMLElement;
   private readonly switchLang: () => void;
@@ -101,6 +109,9 @@ export class Hud {
       this.label(l, key);
       return l;
     };
+    // Faults so far, by severity.
+    this.faultCount = el('div', 'fault-count', dials);
+    this.faultCount.hidden = true;
     this.lamps = {
       engine: lamp('lampEngine', 'lamp-red'),
       handbrake: lamp('lampHandbrake', 'lamp-red'),
@@ -109,6 +120,13 @@ export class Hud {
     };
     this.arrowRight = el('div', 'arrow arrow-right', cluster);
     this.arrowRight.textContent = '▶';
+
+    // Shown only while the car is on its side or roof.
+    this.rightButton = el('button', 'hud-btn primary right-car', this.root);
+    this.rightButton.type = 'button';
+    this.rightButton.hidden = true;
+    this.label(this.rightButton, 'rightCar');
+    this.rightButton.addEventListener('click', callbacks.onRightCar);
 
     this.toast = el('div', 'toast', this.root);
     this.toast.setAttribute('role', 'status');
@@ -164,10 +182,40 @@ export class Hud {
     }
   }
 
+  /** Offer (or stop offering) to put a flipped car back on its wheels. */
+  showRightCar(show: boolean): void {
+    if (this.rightButton.hidden === show) this.rightButton.hidden = !show;
+  }
+
+  /** Show a fault the examiner has just recorded, and count it. */
+  fault(severity: 'minor' | 'serious' | 'fail', title: string): void {
+    this.counts[severity]++;
+    const key: StringKey = severity === 'minor' ? 'sevMinor' : severity === 'serious' ? 'sevSerious' : 'sevFail';
+    this.sayText(`${t(key)}: ${title}`, severity, 5);
+    this.renderCounts();
+  }
+
+  /** Show any text for a few seconds; `tone` colours it. */
+  sayText(text: string, tone: 'info' | 'good' | 'minor' | 'serious' | 'fail' = 'info', seconds = 4): void {
+    this.toast.textContent = text;
+    delete this.toast.dataset['key'];
+    this.toast.dataset['tone'] = tone;
+    this.toast.hidden = false;
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => (this.toast.hidden = true), seconds * 1000);
+  }
+
+  private renderCounts(): void {
+    const c = this.counts;
+    this.faultCount.hidden = c.minor + c.serious + c.fail === 0;
+    this.faultCount.textContent = `${t('faultsCount')}: ${c.minor} · ${c.serious} · ${c.fail}`;
+  }
+
   /** Show a message for a few seconds. */
   say(key: StringKey, seconds = 4): void {
     this.toast.textContent = t(key);
     this.toast.dataset['key'] = key;
+    this.toast.dataset['tone'] = 'info';
     this.toast.hidden = false;
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => (this.toast.hidden = true), seconds * 1000);
@@ -207,6 +255,7 @@ export class Hud {
     const link = el('a', '', foot);
     link.href = './debug.html';
     this.label(link, 'debugLink');
+    this.button(foot, callbacks.map === 'yard' ? 'goTown' : 'goYard', callbacks.onSwitchMap);
     this.button(foot, 'night', callbacks.onNight);
     this.button(foot, 'reset', () => {
       this.toggleHelp(false);
@@ -239,6 +288,7 @@ export class Hud {
     this.last.rpm = -1;
     this.last.camera = '';
     delete this.lamps.lights.dataset['key'];
+    this.renderCounts();
     const toastKey = this.toast.dataset['key'] as StringKey | undefined;
     if (toastKey && !this.toast.hidden) this.toast.textContent = t(toastKey);
   }

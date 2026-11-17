@@ -24,6 +24,8 @@ export interface TouchState {
   analog: AnalogInput;
   starter: boolean;
   horn: boolean;
+  /** Mirror being looked at while its button is held. */
+  look: 'left' | 'centre' | 'right' | null;
 }
 
 export interface TouchDisplay {
@@ -52,7 +54,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, pa
 }
 
 export class TouchControls {
-  readonly state: TouchState = { analog: {}, starter: false, horn: false };
+  readonly state: TouchState = { analog: {}, starter: false, horn: false, look: null };
   readonly root: HTMLElement;
   private readonly fills = {} as Record<PedalName, HTMLElement>;
   private readonly wheel = new SteeringWheelModel();
@@ -201,6 +203,24 @@ export class TouchControls {
     button(extra, 'btn-lights', 'lights', () => this.onAction({ type: 'lights' }));
     const horn = button(extra, 'btn-horn', 'horn', () => undefined);
     this.hold(horn, (on) => (this.state.horn = on));
+    // Mirror checks: a tap is a glance; holding turns the driver's head.
+    const mirrors: [StringKey, 'left' | 'centre' | 'right'][] = [
+      ['mirrorLeft', 'left'],
+      ['mirrorCentre', 'centre'],
+      ['mirrorRight', 'right'],
+    ];
+    for (const [key, mirror] of mirrors) {
+      const b = button(extra, 'btn-mirror', key, () => undefined);
+      b.addEventListener('pointerdown', () => {
+        this.onAction({ type: 'mirror', mirror });
+        this.state.look = mirror;
+      });
+      for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+        b.addEventListener(type, () => {
+          if (this.state.look === mirror) this.state.look = null;
+        });
+      }
+    }
 
     onLangChange(() => this.relabel());
     this.relabel();

@@ -1,0 +1,213 @@
+{
+  "note": "Every rule below is a sensible default, not a checked Royal Oman Police requirement. 'verified': false marks each one for the project owner to check against the real test and change here (severity, thresholds, wording).",
+  "scoring": {
+    "maxMinor": 6,
+    "maxSerious": 0,
+    "verified": false
+  },
+  "rules": {
+    "seatbelt": {
+      "severity": "serious",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "القيادة دون ربط حزام الأمان", "en": "Driving without the seatbelt fastened" },
+      "tip": { "ar": "اربط حزام الأمان قبل أن تتحرك.", "en": "Fasten your seatbelt before you move off." }
+    },
+    "mirrorsMoveOff": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "lookbackS": 6, "stoppedForS": 2 },
+      "title": { "ar": "التحرك دون النظر في المرايا", "en": "Moving off without checking the mirrors" },
+      "tip": { "ar": "انظر في المرآة الوسطى والجانبية قبل أن تتحرك.", "en": "Check the interior and side mirrors before you move off." }
+    },
+    "mirrorsTurn": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "lookbackS": 6 },
+      "title": { "ar": "الانعطاف أو تغيير المسار دون النظر في المرآة", "en": "Turning or changing lane without checking the mirror" },
+      "tip": { "ar": "انظر في المرآة الوسطى ومرآة جهة الانعطاف قبل أن تؤشر.", "en": "Check the interior mirror and the mirror on the side you are turning to before signalling." }
+    },
+    "indicatorTurn": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "minOnS": 2 },
+      "title": { "ar": "الانعطاف دون إشارة أو بإشارة خاطئة", "en": "Turning without signalling, or signalling the wrong way" },
+      "tip": { "ar": "شغّل إشارة جهة الانعطاف قبل التقاطع بوقت كافٍ.", "en": "Signal the way you are turning, in good time before the junction." }
+    },
+    "indicatorRoundaboutExit": {
+      "severity": "minor",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "الخروج من الدوّار دون إشارة", "en": "Leaving the roundabout without signalling" },
+      "tip": { "ar": "شغّل الإشارة اليمنى قبل مخرجك من الدوّار.", "en": "Signal right before your exit from the roundabout." }
+    },
+    "indicatorLaneChange": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "minOnS": 1 },
+      "title": { "ar": "تغيير المسار دون إشارة", "en": "Changing lane without signalling" },
+      "tip": { "ar": "انظر في المرآة، ثم أشّر، ثم غيّر المسار.", "en": "Mirror, signal, then change lane." }
+    },
+    "speeding": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "overKmh": 3, "forS": 3 },
+      "title": { "ar": "تجاوز حد السرعة", "en": "Exceeding the speed limit" },
+      "tip": { "ar": "راقب لوحات السرعة وعدّاد السرعة.", "en": "Watch the speed limit signs and your speedometer." }
+    },
+    "speedingSerious": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "overKmh": 10, "forS": 2 },
+      "title": { "ar": "تجاوز حد السرعة بفارق كبير", "en": "Well over the speed limit" },
+      "tip": { "ar": "خفّف السرعة فوراً، والتزم بالحد في كل شارع.", "en": "Slow down, and keep to the limit on every road." }
+    },
+    "stopSign": {
+      "severity": "fail",
+      "verified": false,
+      "params": { "zoneM": 6, "stoppedBelow": 0.1 },
+      "title": { "ar": "عدم التوقف التام عند لوحة «قف»", "en": "Not stopping completely at a stop sign" },
+      "tip": { "ar": "عند «قف» توقف تماماً قبل الخط، ثم انظر وتأكد قبل أن تتحرك.", "en": "At a stop sign, stop completely before the line, then look before you go." }
+    },
+    "redLight": {
+      "severity": "fail",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "تجاوز الإشارة الحمراء", "en": "Crossing the line on a red light" },
+      "tip": { "ar": "توقف قبل الخط ما دامت الإشارة حمراء.", "en": "Stop before the line while the light is red." }
+    },
+    "amberLight": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "amberForS": 1.5 },
+      "title": { "ar": "الدخول في التقاطع والإشارة صفراء", "en": "Entering the junction on amber" },
+      "tip": { "ar": "الأصفر يعني توقف، إلا إن كنت قريباً جداً لا تستطيع التوقف بأمان.", "en": "Amber means stop, unless you are too close to stop safely." }
+    },
+    "giveWayRoundabout": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "gapS": 2.5, "nearM": 8, "brakeHard": -3.5, "watchS": 3 },
+      "title": { "ar": "عدم إعطاء الأولوية في الدوّار", "en": "Not giving way at the roundabout" },
+      "tip": { "ar": "الأولوية لمن هو داخل الدوّار. انتظر فجوة آمنة قبل الدخول.", "en": "Traffic already on the roundabout has priority. Wait for a safe gap." }
+    },
+    "giveWayJunction": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "gapS": 2.5, "nearM": 8, "brakeHard": -3.5, "watchS": 3 },
+      "title": { "ar": "عدم إعطاء الأولوية عند التقاطع", "en": "Not giving way at the junction" },
+      "tip": { "ar": "من الطريق الفرعي انتظر حتى يخلو الطريق الرئيسي.", "en": "From a side road, wait until the main road is clear." }
+    },
+    "giveWayPedestrians": {
+      "severity": "serious",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "عدم التوقف للمشاة على المعبر", "en": "Not stopping for pedestrians on the crossing" },
+      "tip": { "ar": "اقترب من المعبر ببطء وتوقف لمن يعبر.", "en": "Approach crossings slowly and stop for anyone crossing." }
+    },
+    "stall": {
+      "severity": "minor",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "انطفاء المحرك", "en": "Stalling the engine" },
+      "tip": { "ar": "أعطِ وقوداً أكثر قليلاً وارفع القابض ببطء عند نقطة التعشيق.", "en": "Give a little more gas and lift the clutch slowly through the bite point." }
+    },
+    "rollback": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "maxM": 0.3 },
+      "title": { "ar": "رجوع السيارة للخلف", "en": "Rolling back" },
+      "tip": { "ar": "في المرتفع امسك السيارة بفرامل اليد حتى يعشّق القابض.", "en": "On a hill, hold the car on the handbrake until the clutch bites." }
+    },
+    "touchPole": {
+      "severity": "serious",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "لمس عمود أو مخروط", "en": "Touching a pole or cone" },
+      "tip": { "ar": "تحرك ببطء شديد في المناورات، واستعمل المرايا لترى الأعمدة.", "en": "Go very slowly in manoeuvres and use the mirrors to see the poles." }
+    },
+    "touchKerb": {
+      "severity": "minor",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "ملامسة الرصيف", "en": "Touching the kerb" },
+      "tip": { "ar": "اترك مسافة بينك وبين الرصيف، وخاصة عند الانعطاف.", "en": "Keep clear of the kerb, especially when turning." }
+    },
+    "mountKerb": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "maxM": 1 },
+      "title": { "ar": "الصعود على الرصيف", "en": "Mounting the kerb" },
+      "tip": { "ar": "لا تقترب من الرصيف بسرعة، وابدأ الانعطاف في الوقت المناسب.", "en": "Do not approach the kerb fast, and start your turn at the right point." }
+    },
+    "laneStraddle": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "overM": 0.3, "forS": 3, "minSpeed": 2 },
+      "title": { "ar": "عدم الالتزام بالمسار", "en": "Not keeping to your lane" },
+      "tip": { "ar": "ابقَ في منتصف مسارك، وغيّر المسار بإشارة فقط.", "en": "Keep to the middle of your lane; change lane only after signalling." }
+    },
+    "wrongSide": {
+      "severity": "fail",
+      "verified": false,
+      "params": { "forS": 1 },
+      "title": { "ar": "القيادة في الاتجاه المعاكس", "en": "Driving on the wrong side of the road" },
+      "tip": { "ar": "القيادة في عُمان على يمين الطريق.", "en": "In Oman you drive on the right." }
+    },
+    "followingDistance": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "minGapS": 1, "forS": 3, "minSpeed": 5 },
+      "title": { "ar": "الاقتراب الشديد من السيارة الأمامية", "en": "Following too closely" },
+      "tip": { "ar": "اترك ثانيتين على الأقل بينك وبين السيارة التي أمامك.", "en": "Leave at least two seconds between you and the car ahead." }
+    },
+    "collision": {
+      "severity": "fail",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "اصطدام", "en": "Collision" },
+      "tip": { "ar": "خفّف السرعة وراقب ما حولك، وترك مسافة كافية.", "en": "Slow down, look around you, and keep your distance." }
+    },
+    "bayNotInside": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "maxAngleDeg": 10 },
+      "title": { "ar": "السيارة ليست داخل الموقف", "en": "The car is not inside the bay" },
+      "tip": { "ar": "استخدم المرايا لترى الخطوط، وصحّح مبكراً.", "en": "Use the mirrors to see the lines, and correct early." }
+    },
+    "manoeuvreTime": {
+      "severity": "minor",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "تجاوز الوقت المسموح للمناورة", "en": "Taking too long over the manoeuvre" },
+      "tip": { "ar": "تدرّب على المناورة حتى تصبح سلسة.", "en": "Practise the manoeuvre until it flows." }
+    },
+    "manoeuvreAbandoned": {
+      "severity": "serious",
+      "verified": false,
+      "params": {},
+      "title": { "ar": "عدم إكمال المناورة", "en": "Not completing the manoeuvre" },
+      "tip": { "ar": "أكمل كل مناورة وأوقف السيارة بفرامل اليد في نهايتها.", "en": "Finish each manoeuvre and set the handbrake at the end." }
+    },
+    "hillStartLine": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "windowM": 1 },
+      "title": { "ar": "التوقف بعيداً عن خط المرتفع", "en": "Not stopping at the line on the hill" },
+      "tip": { "ar": "توقف ومقدمة السيارة قبل الخط مباشرة.", "en": "Stop with the front of the car just before the line." }
+    },
+    "stopLineAccuracy": {
+      "severity": "minor",
+      "verified": false,
+      "params": { "toleranceM": 0.5 },
+      "title": { "ar": "التوقف بعيداً عن الخط", "en": "Not stopping on the line" },
+      "tip": { "ar": "اقترب ببطء واضبط الفرامل لتقف عند الخط تماماً.", "en": "Approach slowly and ease the brake to stop right at the line." }
+    },
+    "stopLineOvershoot": {
+      "severity": "serious",
+      "verified": false,
+      "params": { "overM": 1 },
+      "title": { "ar": "تجاوز خط التوقف", "en": "Stopping well past the line" },
+      "tip": { "ar": "ابدأ الفرملة مبكراً.", "en": "Start braking earlier." }
+    }
+  }
+}

@@ -15,6 +15,7 @@ export type Action =
   | { type: 'reset' }
   | { type: 'help' }
   | { type: 'night' }
+  | { type: 'rightCar' }
   | { type: 'starterTap' };
 
 /** Inputs that matter for as long as they are held. */
@@ -71,6 +72,7 @@ const PRESS: Record<string, Action> = {
   KeyL: { type: 'lights' },
   KeyB: { type: 'seatbelt' },
   KeyV: { type: 'camera' },
+  KeyF: { type: 'rightCar' },
   Backspace: { type: 'reset' },
   F1: { type: 'help' },
   KeyT: { type: 'night' },
@@ -100,6 +102,7 @@ export const KEY_HELP: [string, string][] = [
   ['kMirrors', '7  /  8  /  9'],
   ['kCamera', 'V'],
   ['kNight', 'T'],
+  ['kRightCar', 'F'],
   ['kReset', 'Backspace'],
 ];
 

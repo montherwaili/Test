@@ -4,10 +4,10 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 4 of 10 complete.** You can drive a manual car around a small
-Omani-style town in 3D, among traffic and pedestrians that follow the rules:
-roundabouts, signalled junctions, a stop junction, a hill road, speed bumps,
-crossings and parking bays. There is no examiner yet.
+**Status: phase 5 of 10 complete.** You can drive a manual car around a small
+Omani-style town among traffic and pedestrians, or practise the test-yard
+manoeuvres, while an examiner watches and records every fault. There is no
+full test route or result screen yet (phase 6).
 
 ## Run it
 
@@ -42,6 +42,7 @@ handbrake, give a little gas and bring the clutch up slowly.
 | `L`, `H`, `B` | lights, horn, seatbelt |
 | `7` / `8` / `9` | check left / centre / right mirror |
 | `V` | camera: behind the car, driver's seat, from above |
+| `F` | put a flipped car back on its wheels |
 | `T` | day / night |
 | `Backspace` | put the car back at the start |
 | `F1` | help |
@@ -61,6 +62,19 @@ a single-lane roundabout, a stop-controlled T-junction, a 9% hill, speed
 bumps and pedestrian crossings, and a dead-end road lined with parking bays.
 The HUD shows the speed limit of the lane you are in. `T` switches between day
 and night.
+
+If the car ends up on its side or roof, a button appears to put it back on its
+wheels where it lies (it also happens by itself after six seconds).
+
+On a phone the mirror buttons (left, centre, right) sit under the seatbelt,
+lights and horn: tap to glance, hold to keep looking. The examiner counts
+mirror checks.
+
+**Test yard:** open Help and choose “Test yard” (or add `#yard` to the
+address). It has four exercises: stop at the line, hill start, reverse parking
+between poles, and parallel parking. Drive into an exercise's area and the
+examiner announces it; finish a parking exercise by stopping with the
+handbrake on (or in neutral).
 
 Traffic cars and pedestrians share the town with you. Add `?traffic=N` to the
 address to choose how many cars (0 to 40; 0 also removes the pedestrians).
@@ -107,9 +121,9 @@ src/render/    Three.js scene, car model, cameras, mirrors
 src/input/     keyboard, touch, input smoothing (later: gamepad, wheel, tilt)
 src/ui/        HUD and interface text (later: menus, results, replay)
 src/app/       wires the above together and runs the game loop
-src/data/      tuning and maps (later: lessons, routes, examiner rules) as JSON
+src/data/      tuning, maps, the test yard and the examiner's rules (later: lessons, routes) as JSON
 src/debug/     the phase 1 debug page
-src/examiner/  (phase 5) rule checks and scoring - pure TypeScript
+src/examiner/  the examiner: rule checks, yard manoeuvres, scoring - pure TypeScript
 ```
 
 `src/__tests__/architecture.test.ts` fails the test run if anything in
@@ -195,6 +209,54 @@ and the examiner always agree.
 
 Drivers reconsider 30 times a second and simply keep moving in between.
 
+## The examiner
+
+`src/examiner` watches every simulation step and records each fault with its
+time and place. Its input is a small `Observation` (the car's pose and
+controls, what it touched, the traffic and pedestrians nearby), which is what
+lets every rule be tested with scripted drives and no browser.
+
+All rules live in **`src/data/rules.json`**: severity (minor, serious or
+fail), the Arabic and English wording, a tip, and the thresholds. Change them
+there to match the real ROP test. Pass or fail: no fail-level fault, no more
+serious faults than `maxSerious` (0) and no more minor faults than
+`maxMinor` (6).
+
+| Rule | Default | What triggers it |
+| --- | --- | --- |
+| Seatbelt | serious | moving off unbelted |
+| Mirrors on moving off | minor | no mirror check in the 6 s before moving off |
+| Mirrors before a turn or lane change | minor | no centre or side mirror check in the 6 s before |
+| Signal for a turn | serious | indicator not on for 2 s at the line, or the wrong way |
+| Signal leaving a roundabout | minor | no right signal as you leave the ring |
+| Signal for a lane change | minor | indicator not on for 1 s |
+| Speeding | minor / serious | 3 km/h over for 3 s / 10 km/h over for 2 s |
+| Stop sign | fail | not stationary within 6 m of the line |
+| Red light | fail | front crosses the line on red |
+| Amber light | minor | crossing more than 1.5 s into amber |
+| Give way at a roundabout / junction | serious | a priority vehicle within 8 m or 2.5 s, or made to brake hard |
+| Pedestrians | serious | driving over a crossing someone is walking on |
+| Stall | minor | each stall |
+| Rollback | serious | rolling back more than 30 cm out of reverse |
+| Poles and cones | serious | touching one |
+| Kerb | minor / serious | a tyre touching / driving more than 1 m on it |
+| Lane discipline | minor | over the lane line by 30 cm for 3 s without signalling |
+| Wrong side of the road | fail | for 1 s |
+| Following distance | minor | under 1 s behind for 3 s above 18 km/h |
+| Collision | fail | hitting a vehicle, person, wall, building or tree |
+| Bay parking | serious | not wholly inside the bay, or more than 10° crooked |
+| Manoeuvre time | minor | over the time limit (120 s) |
+| Manoeuvre not completed | serious | leaving the exercise area part way through |
+| Hill start | minor | stopping more than 1 m short of the line |
+| Stop at the line | minor / serious | more than 0.5 m off / more than 1 m past |
+
+**Every rule is marked `"verified": false`.** These are reasonable defaults,
+not checked ROP requirements; please go through them and correct what differs
+from the real test.
+
+The test yard layout (bay sizes, pole positions, hill gradient, line
+positions, time limits) is in `src/data/maps/yard.json`, also to be checked.
+
 ### Not yet checked against Omani practice
 
 These are sensible defaults, marked `TODO(verify ...)` in the source:
@@ -231,7 +293,7 @@ automated browser has no graphics card.
 2. **Rapier vehicle on a flat test map, cameras, keyboard and touch input** — done
 3. **Town: road graph, roundabouts, junctions, signs, signals, slopes** — done
 4. **Traffic AI and pedestrians** — done
-5. Examiner rule engine and test yard
+5. **Examiner rule engine and test yard** — done
 6. Full test route mode and result screen
 7. Replay and analysis graphs
 8. Learning mode, lessons, adaptive practice

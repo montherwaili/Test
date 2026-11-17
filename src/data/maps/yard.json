@@ -1,0 +1,65 @@
+{
+  "id": "yard",
+  "note": "Test yard layout and manoeuvre zones. Bay sizes, pole positions, the hill gradient and time limits are defaults to check against the real ROP yard.",
+  "groundSize": 400,
+  "spawn": { "x": 0, "z": 30, "headingDeg": 0 },
+  "roads": [{ "from": [0, 42], "to": [0, -122], "width": 72 }],
+  "hills": [
+    { "x": -8, "z": 10, "headingDeg": 0, "width": 5, "gradePercent": 10, "rampLength": 25, "plateauLength": 12 }
+  ],
+  "solids": [
+    { "kind": "pole", "shape": "cylinder", "center": [12.6, 0.6, -67.25], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [15.4, 0.6, -67.25], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [12.6, 0.6, -72.75], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [15.4, 0.6, -72.75], "height": 1.2, "radius": 0.04 },
+    { "kind": "kerb", "shape": "box", "center": [30.45, 0.075, -75], "size": [0.3, 0.15, 40] },
+    { "kind": "pole", "shape": "cylinder", "center": [27.6, 0.6, -71.5], "height": 1.2, "radius": 0.04 },
+    { "kind": "pole", "shape": "cylinder", "center": [27.6, 0.6, -78.5], "height": 1.2, "radius": 0.04 }
+  ],
+  "cones": [],
+  "markings": [
+    { "type": "line", "from": [-27.4, 22], "to": [-27.4, -25], "width": 0.12, "color": "yellow" },
+    { "type": "line", "from": [-22.6, 22], "to": [-22.6, -25], "width": 0.12, "color": "yellow" },
+    { "type": "line", "from": [-27.4, -10], "to": [-22.6, -10], "width": 0.4, "color": "white" },
+    { "type": "line", "from": [-10.4, -5], "to": [-5.6, -5], "width": 0.4, "color": "white" },
+    { "type": "rect", "center": [14, -70], "size": [2.8, 5.5], "width": 0.1, "color": "white" },
+    { "type": "rect", "center": [11.2, -70], "size": [2.8, 5.5], "width": 0.1, "color": "white" },
+    { "type": "rect", "center": [16.8, -70], "size": [2.8, 5.5], "width": 0.1, "color": "white" },
+    { "type": "rect", "center": [28.9, -75], "size": [2.4, 7.0], "width": 0.1, "color": "white" }
+  ],
+  "manoeuvres": [
+    {
+      "id": "stopLine",
+      "type": "stopLine",
+      "title": { "ar": "التوقف عند الخط", "en": "Stop at the line" },
+      "line": [-25, -10],
+      "headingDeg": 0,
+      "zone": { "center": [-25, -2], "size": [6, 44], "headingDeg": 0 }
+    },
+    {
+      "id": "hillStart",
+      "type": "hillStart",
+      "title": { "ar": "الانطلاق في المرتفع", "en": "Hill start" },
+      "line": [-8, -5],
+      "headingDeg": 0,
+      "zone": { "center": [-8, -1], "size": [6, 30], "headingDeg": 0 },
+      "passM": 6
+    },
+    {
+      "id": "reverseBay",
+      "type": "bay",
+      "title": { "ar": "الاصطفاف للخلف بين الأعمدة", "en": "Reverse parking between the poles" },
+      "bay": { "center": [14, -70], "size": [2.8, 5.5], "headingDeg": 0 },
+      "zone": { "center": [14, -61], "size": [18, 28], "headingDeg": 0 },
+      "timeLimitS": 120
+    },
+    {
+      "id": "parallel",
+      "type": "bay",
+      "title": { "ar": "الاصطفاف الموازي", "en": "Parallel parking" },
+      "bay": { "center": [28.9, -75], "size": [2.4, 7.0], "headingDeg": 0 },
+      "zone": { "center": [26, -75], "size": [11, 32], "headingDeg": 0 },
+      "timeLimitS": 120
+    }
+  ]
+}

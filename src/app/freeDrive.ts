@@ -4,6 +4,10 @@
  * runs the fixed-step loop that ties them together.
  */
 import testTrack from '../data/maps/testTrack.json';
+import yardJson from '../data/maps/yard.json';
+import type { ManoeuvreDef } from '../examiner/yard';
+import { getLang, t } from '../ui/i18n';
+import { ExamSession } from './examining';
 import { InputFilter } from '../input/inputFilter';
 import { Keyboard, type Action } from '../input/keyboard';
 import { TouchControls } from '../input/touch';
@@ -43,8 +47,21 @@ const LOOK_YAW = { left: -0.85, centre: 0.42, right: 1.0 };
 /** Traffic drivers make decisions on every Nth simulation step (120 Hz / 4 = 30 times a second). */
 const TRAFFIC_THINK_EVERY = 4;
 
+/** A flipped car is put back on its wheels after this long, s. */
+const AUTO_RIGHT_AFTER = 6;
+
 /** A tap on Start cranks for at most this long, s. */
 const STARTER_ASSIST = 1.5;
+
+/** Which map to load: from the address (#yard, #town, ?map=yard, ?map=track). */
+function mapChoice(): 'town' | 'yard' | 'track' {
+  const hash = location.hash.replace('#', '');
+  const query = new URLSearchParams(location.search).get('map') ?? '';
+  for (const v of [hash, query]) {
+    if (v === 'yard' || v === 'track' || v === 'town') return v;
+  }
+  return 'town';
+}
 
 function pickQuality(): RenderQuality {
   const asked = new URLSearchParams(location.search).get('q');
@@ -86,6 +103,9 @@ export interface FreeDrive {
   network: RoadNetwork | null;
   teleport: (x: number, z: number, heading: number) => void;
   traffic: Traffic | null;
+  exam: ExamSession;
+  /** The car's physics body (for automated page checks). */
+  body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
 
 export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement): Promise<FreeDrive> {
@@ -93,9 +113,14 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
 
   const tuning = createDefaultTuning();
   const physics = new PhysicsWorld(tuning.sim.stepHz, tuning.body.gravity);
-  // The town by default; ?map=track gives the bare test track from phase 2.
-  const wantTrack = new URLSearchParams(location.search).get('map') === 'track';
-  const map = wantTrack ? buildMap(testTrack as MapDef, physics) : buildTown(physics);
+  // The town by default; #yard (or ?map=yard) is the test yard, ?map=track the bare test track.
+  const which = mapChoice();
+  const map =
+    which === 'track'
+      ? buildMap(testTrack as MapDef, physics)
+      : which === 'yard'
+        ? buildMap(yardJson as unknown as MapDef, physics)
+        : buildTown(physics);
   const network = map.network;
   const surfaceHeightAt = (x: number, z: number) => surfaceHeight(map, x, z);
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
@@ -122,6 +147,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const controls: DriveControls = { ...neutralControls(), steer: 0, handbrake: 1 };
   let starterAssistUntil = -1;
   let cameraIndex = 0;
+  /** Seconds the car has been lying on its side or roof. */
+  let flippedFor = 0;
 
   const renderer = new GameRenderer(canvas, map, tuning, pickQuality());
   if (traffic) renderer.addTraffic(traffic.vehicles.cars, traffic.pedestrians.list);
@@ -130,6 +157,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onCamera: () => handle({ type: 'camera' }),
     onReset: () => handle({ type: 'reset' }),
     onNight: () => handle({ type: 'night' }),
+    onRightCar: () => handle({ type: 'rightCar' }),
+    map: which,
+    onSwitchMap: () => {
+      // The page is rebuilt for the other map (a fresh start, as at the real test centre).
+      location.hash = which === 'yard' ? 'town' : 'yard';
+      location.reload();
+    },
   });
 
   // Poses either side of "now", for smooth drawing between fixed steps.
@@ -137,6 +171,20 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const currPos: Vec3 = { ...prevPos };
   const prevRot: Quat = { ...car.body.rotation() };
   const currRot: Quat = { ...prevRot };
+
+  /** Put the car back on its wheels where it is, facing the way it was going. */
+  function rightCar(): void {
+    const p = car.body.translation();
+    car.place({ x: p.x, y: surfaceHeight(map, p.x, p.z) + 0.05, z: p.z }, vehicle.telemetry.heading);
+    vehicle.resetSolver();
+    Object.assign(prevPos, car.body.translation());
+    Object.assign(currPos, prevPos);
+    Object.assign(prevRot, car.body.rotation());
+    Object.assign(currRot, prevRot);
+    flippedFor = 0;
+    renderer.snapCamera();
+    hud.say('msgRighted', 2);
+  }
 
   function reset(): void {
     car.place(map.spawn.position, map.spawn.heading);
@@ -194,6 +242,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
         renderer.mode = CAMERA_MODES[cameraIndex]!;
         renderer.snapCamera();
         break;
+      case 'rightCar':
+        rightCar();
+        break;
       case 'reset':
         reset();
         break;
@@ -214,7 +265,31 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   if (matchMedia('(pointer: coarse)').matches) enableTouch();
   window.addEventListener('touchstart', enableTouch, { once: true, passive: true });
 
+  // The examiner watches every drive.
+  const exam = new ExamSession(
+    physics,
+    map,
+    vehicle,
+    car.collider.handle,
+    () => car.body.translation(),
+    controls,
+    ancillaries,
+    traffic,
+    trafficBodies,
+    tuning,
+    which === 'yard' ? (yardJson.manoeuvres as ManoeuvreDef[]) : [],
+    {
+      onFault: (f) => hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()]),
+      onManoeuvre: (def, event, ok) => {
+        if (event === 'start') hud.sayText(`${t('msgManoeuvreStart')}: ${def.title[getLang()]}`, 'info', 4);
+        else hud.sayText(`${t(ok ? 'msgManoeuvreOk' : 'msgManoeuvreDone')}: ${def.title[getLang()]}`, ok ? 'good' : 'info', 4);
+      },
+    },
+  );
+
   function report(e: VehicleEvent): void {
+    exam.noteEvent(e.type);
+    // The examiner reports a stall as a fault; this message says what to do about it.
     if (e.type === 'stall') hud.say('msgStalled', 6);
     else if (e.type === 'gearGrind') hud.say(e.reason === 'clutch' ? 'msgGrindClutch' : 'msgGrindReverse');
     else if (e.type === 'overRev') hud.say('msgOverRev');
@@ -274,9 +349,17 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     ancillaries.step(dt, controls.steer);
     Object.assign(currPos, car.body.translation());
     Object.assign(currRot, car.body.rotation());
+    exam.step(dt);
     stats.steps++;
 
     if (currPos.y < -30) reset(); // drove off the edge of the world
+
+    // On its side or roof: offer to right it, and do so anyway after a few seconds.
+    const r = currRot;
+    const upY = 1 - 2 * (r.x * r.x + r.z * r.z);
+    if (upY < 0.35 && Math.abs(vehicle.telemetry.speed) < 2) flippedFor += dt;
+    else flippedFor = 0;
+    if (flippedFor > AUTO_RIGHT_AFTER) rightCar();
   }
 
   const view: CarView = {
@@ -321,7 +404,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     view.lights.left = lamps.left;
     view.lights.right = lamps.right;
     view.lights.head = ancillaries.state.headlights !== 'off';
-    view.lookYaw = keyboard.held.look ? LOOK_YAW[keyboard.held.look] : 0;
+    const look = keyboard.held.look ?? touch.state.look;
+    view.lookYaw = look ? LOOK_YAW[look] : 0;
     for (let i = 0; i < loose.length; i++) {
       const b = map.cones[i]!.body;
       Object.assign(loose[i]!.position, b.translation());
@@ -372,6 +456,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       lampRight: lamps.right,
     });
 
+    hud.showRightCar(flippedFor > 1);
     stats.frames++;
     requestAnimationFrame(frame);
   }
@@ -395,5 +480,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body };
 }
