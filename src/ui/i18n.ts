@@ -60,6 +60,7 @@ const STRINGS = {
     ar: 'غيار منخفض جداً لهذه السرعة!',
     en: 'That gear is too low for this speed!',
   },
+  msgHonk: { ar: 'سيارة خلفك تنتظر: أنت تعطّل الطريق', en: 'A car behind is waiting: you are blocking the road' },
   msgReset: { ar: 'أُعيدت السيارة إلى نقطة البداية', en: 'Car returned to the start' },
   msgRotate: {
     ar: 'أدر الهاتف أفقياً لتحكم أسهل',

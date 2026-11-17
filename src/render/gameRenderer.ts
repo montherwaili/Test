@@ -23,6 +23,9 @@ import type { BuiltMap } from '../world/map';
 import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
+import { TrafficMeshes } from './trafficMeshes';
+import type { Pedestrian } from '../traffic/pedestrians';
+import type { TrafficCar } from '../traffic/vehicles';
 
 export type CameraMode = 'chase' | 'driver' | 'top';
 export const CAMERA_MODES: CameraMode[] = ['chase', 'driver', 'top'];
@@ -85,6 +88,7 @@ export class GameRenderer {
   private readonly sky: HemisphereLight;
   private readonly headlamps: SpotLight[] = [];
   private night = false;
+  private traffic: TrafficMeshes | null = null;
   private readonly mirrors: MirrorView[] = [];
   private mirrorCursor = 0;
   private chaseYaw = 0;
@@ -180,6 +184,17 @@ export class GameRenderer {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Create the meshes for traffic cars and pedestrians (once, after the traffic exists). */
+  addTraffic(cars: readonly TrafficCar[], people: readonly Pedestrian[]): void {
+    this.traffic = new TrafficMeshes(cars, people);
+    this.scene.add(this.traffic.root);
+  }
+
+  /** Move traffic meshes to match the traffic logic. */
+  updateTraffic(cars: readonly TrafficCar[], people: readonly Pedestrian[], time: number): void {
+    this.traffic?.update(cars, people, time);
   }
 
   /** Switch between day and night lighting. */

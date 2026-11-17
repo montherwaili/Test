@@ -48,6 +48,13 @@ export interface LooseBody {
   readonly body: RAPIER.RigidBody;
 }
 
+export interface Mover {
+  /** Collider handle, to recognise it in collision reports. */
+  readonly handle: number;
+  /** Where it should be after the next physics step. `y` is the ground level under it. */
+  moveTo(x: number, y: number, z: number, rotation: Quat): void;
+}
+
 export class PhysicsWorld {
   readonly world: RAPIER.World;
   readonly ground: GroundPort;
@@ -111,6 +118,32 @@ export class PhysicsWorld {
       body,
     );
     return { body };
+  }
+
+  /**
+   * A body that is moved by script, not by forces (a traffic car, a
+   * pedestrian). It pushes the player's car but nothing pushes it.
+   */
+  addMover(shape: { box: Vec3 } | { cylinder: { height: number; radius: number } }, centreHeight: number): Mover {
+    const body = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -100, 0));
+    const desc = 'box' in shape
+      ? RAPIER.ColliderDesc.cuboid(shape.box.x / 2, shape.box.y / 2, shape.box.z / 2)
+      : RAPIER.ColliderDesc.cylinder(shape.cylinder.height / 2, shape.cylinder.radius);
+    const collider = this.world.createCollider(
+      desc.setTranslation(0, centreHeight, 0).setFriction(0.4).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      body,
+    );
+    const pos = { x: 0, y: 0, z: 0 };
+    return {
+      handle: collider.handle,
+      moveTo(x: number, y: number, z: number, rotation: Quat): void {
+        pos.x = x;
+        pos.y = y;
+        pos.z = z;
+        body.setNextKinematicTranslation(pos);
+        body.setNextKinematicRotation(rotation);
+      },
+    };
   }
 
   /** The player's car body. Its forces come from the vehicle model, not from Rapier. */

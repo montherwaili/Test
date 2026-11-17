@@ -28,6 +28,8 @@ import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
 import { buildTown } from '../world/town';
+import { Traffic, type PlayerState } from '../traffic/traffic';
+import { TrafficBodies } from '../world/trafficBodies';
 
 const CAMERA_NAMES: Record<(typeof CAMERA_MODES)[number], StringKey> = {
   chase: 'camChase',
@@ -37,6 +39,9 @@ const CAMERA_NAMES: Record<(typeof CAMERA_MODES)[number], StringKey> = {
 
 /** Where the driver's head turns for each mirror, rad (left-hand drive). */
 const LOOK_YAW = { left: -0.85, centre: 0.42, right: 1.0 };
+
+/** Traffic drivers make decisions on every Nth simulation step (120 Hz / 4 = 30 times a second). */
+const TRAFFIC_THINK_EVERY = 4;
 
 /** A tap on Start cranks for at most this long, s. */
 const STARTER_ASSIST = 1.5;
@@ -80,6 +85,7 @@ export interface FreeDrive {
   stats: { frames: number; steps: number; fps: number };
   network: RoadNetwork | null;
   teleport: (x: number, z: number, heading: number) => void;
+  traffic: Traffic | null;
 }
 
 export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement): Promise<FreeDrive> {
@@ -93,6 +99,21 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const network = map.network;
   const surfaceHeightAt = (x: number, z: number) => surfaceHeight(map, x, z);
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
+
+  // Traffic and pedestrians, where the map has roads for them. ?traffic=N sets how many cars (0 = none).
+  const params = new URLSearchParams(location.search);
+  const asked = Number(params.get('traffic'));
+  const phone = matchMedia('(pointer: coarse)').matches;
+  const carCount = params.has('traffic') && Number.isFinite(asked) ? Math.max(0, Math.min(40, Math.round(asked))) : phone ? 10 : 14;
+  const traffic = network
+    ? new Traffic(network, {
+        cars: carCount,
+        pedestriansPerCrossing: carCount > 0 ? 2 : 0,
+        seed: 2026,
+        keepClear: [network.locate(map.spawn.position, (map.spawn.heading * 180) / Math.PI)?.lane.id ?? ''],
+      })
+    : null;
+  const trafficBodies = traffic ? new TrafficBodies(physics, traffic) : null;
   const vehicle = new Vehicle(tuning, car.port, physics.ground);
   const ancillaries = new Ancillaries();
   const stepper = new FixedStepper(tuning.sim.stepHz, tuning.sim.maxSubSteps);
@@ -103,6 +124,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   let cameraIndex = 0;
 
   const renderer = new GameRenderer(canvas, map, tuning, pickQuality());
+  if (traffic) renderer.addTraffic(traffic.vehicles.cars, traffic.pedestrians.list);
 
   const hud = new Hud(app, {
     onCamera: () => handle({ type: 'camera' }),
@@ -199,6 +221,14 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   }
 
   const stats = { frames: 0, steps: 0, fps: 60 };
+  const player: PlayerState = {
+    x: 0,
+    z: 0,
+    headingDeg: 0,
+    speed: 0,
+    length: tuning.chassis.wheelbase + tuning.chassis.frontOverhang + tuning.chassis.rearOverhang,
+    width: tuning.chassis.bodyWidth,
+  };
 
   // Where the car is on the road network (looked up a few times a second, not every frame).
   let speedLimit: number | null = null;
@@ -206,7 +236,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const here = { x: 0, z: 0 };
   const signalNow = (junction: string, group: string) => {
     const plan = network?.signals.get(junction);
-    return plan ? signalState(plan, group, vehicle.time) : 'red';
+    // The same clock the traffic uses, so what the lamps show is what the cars obey.
+    return plan ? signalState(plan, group, traffic ? traffic.time : vehicle.time) : 'red';
   };
 
   function simStep(dt: number): void {
@@ -222,6 +253,19 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     controls.starter =
       keyboard.held.starter || touch.state.starter || (!running && vehicle.time < starterAssistUntil);
     ancillaries.setHorn(keyboard.held.horn || touch.state.horn);
+
+    if (traffic && trafficBodies) {
+      player.x = currPos.x;
+      player.z = currPos.z;
+      player.headingDeg = (vehicle.telemetry.heading * 180) / Math.PI;
+      player.speed = vehicle.telemetry.wheelSpeed;
+      // Drivers reconsider thirty times a second; in between they carry on as decided.
+      const think = stats.steps % TRAFFIC_THINK_EVERY === 0;
+      for (const e of traffic.step(dt, player, think, dt * TRAFFIC_THINK_EVERY)) {
+        if (e.type === 'honk') hud.say('msgHonk', 3);
+      }
+      trafficBodies.sync();
+    }
 
     Object.assign(prevPos, currPos);
     Object.assign(prevRot, currRot);
@@ -294,6 +338,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
         speedLimit = at ? at.lane.speedLimit : null;
       }
     }
+    if (traffic) renderer.updateTraffic(traffic.vehicles.cars, traffic.pedestrians.list, traffic.time);
     renderer.render(view, loose, elapsed);
 
     const tm = vehicle.telemetry;
@@ -349,5 +394,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic };
 }

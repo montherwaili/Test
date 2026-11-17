@@ -46,8 +46,13 @@ export class Traffic {
     return this.vehicles.time;
   }
 
-  /** Advance traffic and pedestrians. Returns the events raised (horns). */
-  step(dt: number, player?: PlayerState): TrafficEvent[] {
+  /**
+   * Advance traffic and pedestrians. Returns the events raised (horns).
+   * Pass `think` false on steps where the cars should just keep doing what
+   * they last decided (see TrafficVehicles.step); `thinkDt` is then the time
+   * between thinking steps.
+   */
+  step(dt: number, player?: PlayerState, think = true, thinkDt = dt): TrafficEvent[] {
     const others: Obstacle[] = [];
     if (player) {
       const p = this.player;
@@ -62,10 +67,16 @@ export class Traffic {
       p.s = at ? at.s : 0;
       others.push(p);
     }
-    this.vehicles.step(dt, others, (car, lane, fromS, offset) => {
-      const d = this.pedestrians.stopDistance(lane, fromS, car.speed, car.length);
-      return d === Infinity ? Infinity : offset + d;
-    });
+    this.vehicles.step(
+      dt,
+      others,
+      (car, lane, fromS, offset) => {
+        const d = this.pedestrians.stopDistance(lane, fromS, car.speed, car.length);
+        return d === Infinity ? Infinity : offset + d;
+      },
+      think,
+      thinkDt,
+    );
     this.withPlayer.length = 0;
     this.withPlayer.push(...this.vehicles.cars, ...others);
     this.pedestrians.step(dt, this.withPlayer);

@@ -191,12 +191,18 @@ export class TrafficVehicles {
   /**
    * Advance all cars by `dt`. `others` are obstacles that are not traffic
    * cars (the player). `extraStops` lets the caller add stop requests.
+   *
+   * With `think` false the cars only move, holding the acceleration they last
+   * chose: drivers do not need to reconsider 120 times a second, so the game
+   * thinks on every fourth step. `thinkDt` is the time since they last thought.
    */
-  step(dt: number, others: Obstacle[] = [], extraStops?: ExtraStops): void {
+  step(dt: number, others: Obstacle[] = [], extraStops?: ExtraStops, think = true, thinkDt = dt): void {
     this.time += dt;
-    const all: Obstacle[] = [...this.cars, ...others];
-    // Decide every car's acceleration from the same snapshot, then move them all.
-    for (const car of this.cars) car.accel = this.decide(car, all, dt, extraStops);
+    if (think) {
+      const all: Obstacle[] = [...this.cars, ...others];
+      // Decide every car's acceleration from the same snapshot, then move them all.
+      for (const car of this.cars) car.accel = this.decide(car, all, thinkDt, extraStops);
+    }
     for (const car of this.cars) this.move(car, dt);
   }
 

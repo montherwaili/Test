@@ -4,10 +4,10 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 3 of 10 complete.** You can drive a manual car around a small
-Omani-style town in 3D: roundabouts, signalled junctions, a stop junction, a
-hill road, speed bumps, crossings and parking bays. There is no traffic or
-examiner yet.
+**Status: phase 4 of 10 complete.** You can drive a manual car around a small
+Omani-style town in 3D, among traffic and pedestrians that follow the rules:
+roundabouts, signalled junctions, a stop junction, a hill road, speed bumps,
+crossings and parking bays. There is no examiner yet.
 
 ## Run it
 
@@ -60,6 +60,9 @@ bumps and pedestrian crossings, and a dead-end road lined with parking bays.
 The HUD shows the speed limit of the lane you are in. `T` switches between day
 and night.
 
+Traffic cars and pedestrians share the town with you. Add `?traffic=N` to the
+address to choose how many cars (0 to 40; 0 also removes the pedestrians).
+
 Add `?map=track` to the address for the bare test track from phase 2 (road,
 10% hill, kerb, loose cones, parking bays marked with poles, steering circles).
 
@@ -97,18 +100,18 @@ paste into `src/data/tuning.json` to keep them.
 src/sim/       vehicle model - pure TypeScript: no rendering, browser or physics-engine imports
 src/world/     the Rapier physics world, map building and the town
 src/world/roads/  lane-level road network, town generator, signal timing - pure TypeScript
+src/traffic/   traffic cars and pedestrians - pure TypeScript, seeded
 src/render/    Three.js scene, car model, cameras, mirrors
 src/input/     keyboard, touch, input smoothing (later: gamepad, wheel, tilt)
 src/ui/        HUD and interface text (later: menus, results, replay)
 src/app/       wires the above together and runs the game loop
 src/data/      tuning and maps (later: lessons, routes, examiner rules) as JSON
 src/debug/     the phase 1 debug page
-src/traffic/   (phase 4) AI cars and pedestrians
 src/examiner/  (phase 5) rule checks and scoring - pure TypeScript
 ```
 
 `src/__tests__/architecture.test.ts` fails the test run if anything in
-`src/sim`, `src/examiner` or `src/world/roads` imports rendering, UI or
+`src/sim`, `src/examiner`, `src/world/roads` or `src/traffic` imports rendering, UI or
 physics-engine code, or touches browser globals, the wall clock or
 `Math.random`.
 
@@ -172,6 +175,24 @@ grid (roundabout, signal, priority, bend, dead end) and the roads between them
 Traffic signals (`signals.ts`) are a pure function of time, so lamps, traffic
 and the examiner always agree.
 
+## Traffic and pedestrians
+
+`src/traffic` is pure TypeScript and seeded, so a run can be repeated exactly.
+
+- **Traffic cars** (`vehicles.ts`) follow the lanes of the road network. They
+  keep a safe distance using the Intelligent Driver Model, obey speed limits
+  and slow in time for junctions, stop at red lights and stop signs, give way
+  at roundabouts and at the T-junction, indicate for turns, and sound the horn
+  at a vehicle left standing in the road. They move along lane centre lines
+  rather than being full physics cars; the world layer gives them solid bodies.
+- **Pedestrians** (`pedestrians.ts`) use the marked crossings: they wait at the
+  kerb until anything approaching could stop for them, then cross. Traffic
+  stops short of the stripes for anyone waiting or crossing.
+- **The player counts** for both: traffic keeps its distance from you and gives
+  way to you where you have priority; pedestrians wait if you could not stop.
+
+Drivers reconsider 30 times a second and simply keep moving in between.
+
 ### Not yet checked against Omani practice
 
 These are sensible defaults, marked `TODO(verify ...)` in the source:
@@ -183,26 +204,31 @@ These are sensible defaults, marked `TODO(verify ...)` in the source:
   3 s amber, 2 s all-red; no flashing green);
 - sign designs, wording, numerals and placement.
 
-## Performance (measured after phase 3)
+## Performance
+
+Measured after phases 3 and 4, in the town.
 
 | | |
 | --- | --- |
-| Physics + vehicle, per 120 Hz step, in the town | 41 µs (0.5% of the 8.3 ms budget) |
+| Physics + player's car, per 120 Hz step | 41 µs (0.5% of the 8.3 ms budget) |
+| Traffic, 14 cars + 8 pedestrians, per step | 35 µs (0.4%) |
+| Traffic, 30 cars + 8 pedestrians, per step | 88 µs (1.1%) |
 | Generating the town and its 76 colliders | 16 ms, once at load |
 | Finding the lane under the car | 9 µs |
-| Draw calls per frame (chase view) | 64 |
-| Triangles per frame | about 29,000 |
+| Draw calls per frame, no traffic / with traffic | 64 / 73 |
+| Triangles per frame, 14 / 30 traffic cars | about 38,000 / 45,000 |
 
-Static geometry is merged into a few meshes, which is what keeps the draw
-calls low. Frame rate on real hardware has not been measured: the automated
-browser has no graphics card.
+Static geometry is merged into a few meshes and traffic is drawn with
+instancing, which is what keeps the draw calls low: more cars add triangles
+but no draw calls. Frame rate on real hardware has not been measured: the
+automated browser has no graphics card.
 
 ## Build phases
 
 1. **Setup, sim core, unit tests, debug page** — done
 2. **Rapier vehicle on a flat test map, cameras, keyboard and touch input** — done
 3. **Town: road graph, roundabouts, junctions, signs, signals, slopes** — done
-4. Traffic AI and pedestrians
+4. **Traffic AI and pedestrians** — done
 5. Examiner rule engine and test yard
 6. Full test route mode and result screen
 7. Replay and analysis graphs
