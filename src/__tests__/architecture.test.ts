@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * The simulation, the examiner and the road network must stay free of
+ * The simulation, the examiner, the road network and the traffic must stay free of
  * rendering, browser, UI and physics-engine code, so they can run headless
  * (tests, replays, scripted drives). This test reads their source and fails
  * on a forbidden import or global.
  */
-const sources = import.meta.glob(['../sim/**/*.ts', '../examiner/**/*.ts', '../world/roads/**/*.ts'], {
+const sources = import.meta.glob(['../sim/**/*.ts', '../examiner/**/*.ts', '../world/roads/**/*.ts', '../traffic/**/*.ts'], {
   query: '?raw',
   import: 'default',
   eager: true,
