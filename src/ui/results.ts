@@ -17,7 +17,9 @@ export interface ResultFault {
 }
 
 export interface ResultData {
-  kind: 'road' | 'yard';
+  kind: 'road' | 'yard' | 'lesson';
+  /** Lessons: its name and the stars earned (0..3). */
+  lesson?: { title: Text; stars: number; completed: boolean };
   verdict: Verdict;
   durationS: number;
   distanceM: number;
@@ -36,6 +38,9 @@ export interface ResultActions {
   onFreeDrive: () => void;
   /** Watch the replay, from the start or from just before a fault. Absent when there is no recording. */
   onReplay?: (at?: number) => void;
+  /** Lessons: go on to the next one, or back to the list. */
+  onNextLesson?: () => void;
+  onLessons?: () => void;
 }
 
 const REASON_KEYS: Record<VerdictReason, StringKey> = {
@@ -104,9 +109,18 @@ export class ResultsScreen {
     const card = el('div', 'results-card', this.root);
 
     const head = el('div', `results-head ${d.verdict.passed ? 'pass' : 'fail'}`, card);
-    el('div', 'results-kind', head, t(d.kind === 'road' ? 'testRoad' : 'testYard'));
-    el('h2', 'results-verdict', head, t(d.verdict.passed ? 'resPass' : 'resFail'));
-    if (d.verdict.reasons.length) {
+    if (d.lesson) {
+      el('div', 'results-kind', head, d.lesson.title[lang]);
+      el('h2', 'results-verdict', head, t(d.lesson.completed ? 'lessonDone' : 'lessonNotDone'));
+      const stars = el('div', 'results-stars', head);
+      stars.dir = 'ltr';
+      stars.setAttribute('aria-label', `${d.lesson.stars} / 3`);
+      for (let i = 0; i < 3; i++) el('span', i < d.lesson.stars ? 'on' : '', stars, '★');
+    } else {
+      el('div', 'results-kind', head, t(d.kind === 'road' ? 'testRoad' : 'testYard'));
+      el('h2', 'results-verdict', head, t(d.verdict.passed ? 'resPass' : 'resFail'));
+    }
+    if (d.verdict.reasons.length && !d.lesson) {
       const reasons = el('ul', 'results-reasons', head);
       for (const r of d.verdict.reasons) el('li', '', reasons, t(REASON_KEYS[r]));
     }
@@ -174,7 +188,17 @@ export class ResultsScreen {
       watch.type = 'button';
       watch.addEventListener('click', () => replay());
     }
-    const retry = el('button', 'hud-btn', buttons, t('resTryAgain'));
+    if (this.actions.onNextLesson) {
+      const next = el('button', 'hud-btn primary', buttons, t('lessonNext'));
+      next.type = 'button';
+      next.addEventListener('click', this.actions.onNextLesson);
+    }
+    if (this.actions.onLessons) {
+      const list = el('button', 'hud-btn', buttons, t('lessonsMenu'));
+      list.type = 'button';
+      list.addEventListener('click', this.actions.onLessons);
+    }
+    const retry = el('button', 'hud-btn', buttons, t(d.lesson ? 'lessonRetry' : 'resTryAgain'));
     retry.type = 'button';
     retry.addEventListener('click', this.actions.onRetry);
     const free = el('button', 'hud-btn', buttons, t('resFreeDrive'));

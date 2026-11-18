@@ -1313,3 +1313,148 @@ a:focus-visible {
   min-width: 40px;
   min-height: 36px;
 }
+
+.results-stars {
+  font-size: 34px;
+  letter-spacing: 4px;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.results-stars .on {
+  color: #ffc53d;
+}
+
+/* --- lessons --------------------------------------------------------------- */
+
+.goal {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--edge-b) + 64px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, 92vw);
+  background: rgba(16, 18, 22, 0.88);
+  border: 1px solid #ffc53d;
+  border-radius: 12px;
+  padding: 6px 8px 6px 12px;
+  font-weight: 600;
+}
+
+.goal .step {
+  flex: none;
+  font-size: 12px;
+  color: #ffc53d;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal .text {
+  min-width: 0;
+}
+
+.goal .hud-btn {
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.touch .goal {
+  /* Between the steering wheel and the pedals, above Start and Handbrake. */
+  max-width: calc(100vw - 2 * (var(--pedal-w) * 2 + 60px));
+  font-size: 13px;
+}
+
+.lessons-menu {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 12px;
+}
+
+.lessons-card {
+  width: min(720px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  touch-action: pan-y;
+}
+
+.lessons-card h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.lessons-stats {
+  color: var(--ink-3);
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.lessons-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.lessons-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.lessons-list li.suggested {
+  border-color: #ffc53d;
+}
+
+.lessons-list .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lessons-list .title {
+  font-weight: 700;
+}
+
+.lessons-list .badge {
+  margin-inline-start: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffc53d;
+}
+
+.lessons-list .intro {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.lessons-list .stars {
+  flex: none;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 2px;
+}
+
+.lessons-list .stars .on {
+  color: #ffc53d;
+}
+
+.lessons-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 14px;
+}

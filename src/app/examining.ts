@@ -85,6 +85,11 @@ export class ExamSession {
     };
   }
 
+  /** The observation of the last step (lessons read it too). */
+  get observation(): Observation {
+    return this.obs;
+  }
+
   /** Time of the last step watched. */
   get lastTime(): number {
     return this.obs.time;

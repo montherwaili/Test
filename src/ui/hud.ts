@@ -23,7 +23,7 @@ export interface HudState {
 }
 
 /** Free drive in the town or yard, the two tests, or the bare test track. */
-export type GameMode = 'town' | 'yard' | 'roadTest' | 'yardTest' | 'track';
+export type GameMode = 'town' | 'yard' | 'roadTest' | 'yardTest' | 'track' | 'lesson';
 
 export interface HudCallbacks {
   /** Switch to another mode (each starts afresh). */
@@ -31,6 +31,8 @@ export interface HudCallbacks {
   /** The mode now running. */
   mode: GameMode;
   onRightCar: () => void;
+  /** Open the list of lessons. */
+  onLessons: () => void;
   onCamera: () => void;
   onReset: () => void;
   onNight: () => void;
@@ -61,6 +63,11 @@ export class Hud {
   private readonly instruction: HTMLElement;
   private readonly instructionText: HTMLElement;
   private readonly instructionIcon: HTMLElement;
+  private readonly goal: HTMLElement;
+  private readonly goalStep: HTMLElement;
+  private readonly goalText: HTMLElement;
+  private goalSource: (() => string) | null = null;
+  private goalHint: (() => string) | null = null;
   private instructionTimer = 0;
   private instructionSource: () => string = () => '';
   private counts = { minor: 0, serious: 0, fail: 0 };
@@ -143,6 +150,16 @@ export class Hud {
     this.instructionIcon = el('span', 'icon', this.instruction);
     this.instructionText = el('span', '', this.instruction);
 
+    // A lesson's current goal, with a button for a hint.
+    this.goal = el('div', 'goal', this.root);
+    this.goal.hidden = true;
+    this.goalStep = el('span', 'step', this.goal);
+    this.goalText = el('span', 'text', this.goal);
+    const hint = this.button(this.goal, 'lessonHint', () => {
+      if (this.goalHint) this.sayText(this.goalHint(), 'info', 7);
+    });
+    hint.classList.add('hint-btn');
+
     this.toast = el('div', 'toast', this.root);
     this.toast.setAttribute('role', 'status');
     this.toast.hidden = true;
@@ -208,9 +225,30 @@ export class Hud {
     // Text given as a function is redrawn when the language changes.
     this.instructionSource = typeof text === 'function' ? text : () => text;
     this.instructionText.textContent = this.instructionSource();
+    if (this.goalSource) this.goalText.textContent = this.goalSource();
     this.instruction.hidden = false;
     window.clearTimeout(this.instructionTimer);
     this.instructionTimer = window.setTimeout(() => (this.instruction.hidden = true), seconds * 1000);
+  }
+
+  /** Show a lesson goal (null hides it). Text as functions, so they follow the language. */
+  setGoal(goal: { step: number; total: number; text: () => string; hint: () => string } | null): void {
+    if (!goal) {
+      this.goal.hidden = true;
+      this.goalSource = null;
+      this.goalHint = null;
+      return;
+    }
+    this.goalStep.textContent = `${t('lessonGoal')} ${goal.step}/${goal.total}`;
+    this.goalSource = goal.text;
+    this.goalHint = goal.hint;
+    this.goalText.textContent = goal.text();
+    this.goal.hidden = false;
+  }
+
+  /** Show the current goal's hint (after a while with no progress, say). */
+  showHint(): void {
+    if (this.goalHint) this.sayText(this.goalHint(), 'info', 7);
   }
 
   /** Show a fault the examiner has just recorded, and count it. */
@@ -282,6 +320,11 @@ export class Hud {
     link.href = './debug.html';
     this.label(link, 'debugLink');
     const modes = el('div', 'help-modes', card);
+    const lessonsButton = this.button(modes, 'lessons', () => {
+      this.toggleHelp(false);
+      callbacks.onLessons();
+    });
+    if (callbacks.mode === 'lesson') lessonsButton.classList.add('primary');
     const modeButtons: [GameMode, StringKey][] = [
       ['roadTest', 'testRoad'],
       ['yardTest', 'testYard'],

@@ -10,6 +10,11 @@ import { getLang, t } from '../ui/i18n';
 import { ExamSession } from './examining';
 import { ROAD_ROUTE, TestSession } from './testSession';
 import { ReplayPlayer } from './replayPlayer';
+import { LessonSession } from './lessonSession';
+import { loadLessons } from '../learning/lesson';
+import { recordFaults, recordLesson, recordTest } from '../learning/progress';
+import { LessonsMenu } from '../ui/lessonsMenu';
+import { loadProgress, saveProgress } from '../ui/storage';
 import { LIGHT, Recording } from '../replay/recording';
 import type { ResultData } from '../ui/results';
 import { ResultsScreen } from '../ui/results';
@@ -70,10 +75,26 @@ const MODE_HASH: Record<GameMode, string> = {
   roadTest: 'road-test',
   yardTest: 'yard-test',
   track: 'track',
+  lesson: 'lesson',
 };
+
+const LESSONS = loadLessons();
+
+/** The lesson asked for in the address (#lesson-gears), if any. */
+function lessonChoice(): string | null {
+  const m = /^#lesson-([A-Za-z]+)$/.exec(location.hash);
+  return m && LESSONS.some((l) => l.id === m[1]) ? m[1]! : null;
+}
+
+/** Start a lesson afresh. */
+function startLesson(id: string): void {
+  location.hash = `lesson-${id}`;
+  location.reload();
+}
 
 /** Which mode to run: from the address (#road-test, #yard, ?map=track, ...); free drive in town otherwise. */
 function modeChoice(): GameMode {
+  if (lessonChoice()) return 'lesson';
   const hash = location.hash.replace('#', '');
   const query = new URLSearchParams(location.search).get('map') ?? '';
   for (const v of [hash, query]) {
@@ -155,6 +176,8 @@ export interface FreeDrive {
   results: ResultsScreen;
   recording: Recording | null;
   player: ReplayPlayer | null;
+  lesson: LessonSession | null;
+  lessonsMenu: LessonsMenu;
   /** The car's physics body (for automated page checks). */
   body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
@@ -167,7 +190,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   // The town by default; #yard (or ?map=yard) is the test yard, ?map=track the bare test track.
   const mode = modeChoice();
   const testing = mode === 'roadTest' || mode === 'yardTest';
-  const inYard = mode === 'yard' || mode === 'yardTest';
+  const lessonDef = mode === 'lesson' ? LESSONS.find((l) => l.id === lessonChoice())! : null;
+  const inYard = mode === 'yard' || mode === 'yardTest' || lessonDef?.map === 'yard';
   const map =
     mode === 'track'
       ? buildMap(testTrack as MapDef, physics)
@@ -182,6 +206,20 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     map.spawn.position = { x: p.x, y: 0, z: p.z };
     map.spawn.heading = Math.atan2(d.x, -d.z);
   }
+  // A lesson starts where it says.
+  if (lessonDef) {
+    const st = lessonDef.start;
+    if ('lane' in st && map.network) {
+      const lane = map.network.lane(st.lane);
+      const p = lane.path.pointAt(st.at);
+      const d = lane.path.directionAt(st.at);
+      map.spawn.position = { x: p.x, y: 0, z: p.z };
+      map.spawn.heading = Math.atan2(d.x, -d.z);
+    } else if (!('lane' in st)) {
+      map.spawn.position = { x: st.x, y: surfaceHeight(map, st.x, st.z), z: st.z };
+      map.spawn.heading = (st.headingDeg * Math.PI) / 180;
+    }
+  }
   const network = map.network;
   const surfaceHeightAt = (x: number, z: number) => surfaceHeight(map, x, z);
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
@@ -190,7 +228,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const params = new URLSearchParams(location.search);
   const asked = Number(params.get('traffic'));
   const phone = matchMedia('(pointer: coarse)').matches;
-  const carCount = params.has('traffic') && Number.isFinite(asked) ? Math.max(0, Math.min(40, Math.round(asked))) : phone ? 10 : 14;
+  const carCount = params.has('traffic') && Number.isFinite(asked)
+    ? Math.max(0, Math.min(40, Math.round(asked)))
+    : lessonDef
+      ? (lessonDef.traffic ?? 0)
+      : phone
+        ? 10
+        : 14;
   const traffic = network
     ? new Traffic(network, {
         cars: carCount,
@@ -219,6 +263,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onReset: () => handle({ type: 'reset' }),
     onNight: () => handle({ type: 'night' }),
     onRightCar: () => handle({ type: 'rightCar' }),
+    onLessons: () => lessonsMenu.show(),
     mode,
     // Each mode starts afresh, as at the real test centre.
     onMode: switchMode,
@@ -344,7 +389,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     inYard ? (yardJson.manoeuvres as ManoeuvreDef[]) : [],
     {
       // In a test the examiner keeps the faults to himself until the end, as a real one does.
-      onFault: (f) => (test ? test.onFault(f) : hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()])),
+      onFault: (f) =>
+        lessonRun ? lessonRun.onFault(f) : test ? test.onFault(f) : hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()]),
       onManoeuvre: (def, event, ok) => {
         if (event === 'start') hud.sayText(`${t('msgManoeuvreStart')}: ${def.title[getLang()]}`, 'info', 4);
         else hud.sayText(`${t(ok ? 'msgManoeuvreOk' : 'msgManoeuvreDone')}: ${def.title[getLang()]}`, ok ? 'good' : 'info', 4);
@@ -353,7 +399,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   );
 
   // Tests are recorded for the replay: the world 20 times a second, the controls every step.
-  const recording = testing
+  const recording = testing || lessonDef
     ? new Recording({ traffic: traffic?.vehicles.cars.length ?? 0, pedestrians: traffic?.pedestrians.list.length ?? 0, loose: map.cones.length })
     : null;
   let lastResult: ResultData | null = null;
@@ -372,8 +418,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       )
     : null;
 
+  const progress = loadProgress();
+  const lessonsMenu = new LessonsMenu(app, LESSONS, () => progress, startLesson);
+  const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {
-    onRetry: () => switchMode(mode),
+    onRetry: () => (lessonDef ? startLesson(lessonDef.id) : switchMode(mode)),
+    ...(nextLesson && { onNextLesson: () => startLesson(nextLesson.id) }),
+    ...(lessonDef && { onLessons: () => lessonsMenu.show() }),
     onFreeDrive: () => switchMode(inYard ? 'yard' : 'town'),
     ...(replay && {
       onReplay: (at?: number) => {
@@ -386,6 +437,19 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const test = testing
     ? new TestSession(mode === 'roadTest' ? 'road' : 'yard', exam, map.network, hud, mapLines(map, inYard), (r) => {
         lastResult = r;
+        // Progress: what went wrong feeds the practice suggestions.
+        recordFaults(progress, exam.examiner.faults);
+        recordTest(progress, r.verdict.passed);
+        saveProgress(progress);
+        results.show(r);
+      })
+    : null;
+  const lessonRun = lessonDef
+    ? new LessonSession(lessonDef, exam, map.network, hud, mapLines(map, inYard), (r, stars) => {
+        lastResult = r;
+        recordFaults(progress, exam.examiner.faults);
+        if (r.lesson?.completed) recordLesson(progress, lessonDef.id, lessonDef.skill, stars);
+        saveProgress(progress);
         results.show(r);
       })
     : null;
@@ -521,7 +585,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     Object.assign(currPos, car.body.translation());
     Object.assign(currRot, car.body.rotation());
     exam.step(dt);
-    if (recording && stats.steps % FRAME_EVERY === 0 && !test?.ended) recordFrame();
+    if (recording && stats.steps % FRAME_EVERY === 0 && !test?.ended && !lessonRun?.ended) recordFrame();
+    lessonRun?.step({ ...exam.observation, running: vehicle.powertrain.state.running });
     test?.step({
       time: vehicle.time,
       dt,
@@ -577,7 +642,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       return;
     }
 
-    if (!hud.helpOpen && !results.open) stepper.advance(elapsed, simStep);
+    if (!hud.helpOpen && !results.open && !lessonsMenu.open) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
     lerpPose(prevPos, currPos, alpha, view.position);
@@ -663,7 +728,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   // Let the car settle on its springs before the first picture.
   for (let i = 0; i < tuning.sim.stepHz; i++) simStep(stepper.dt);
   // In a test the examiner's own instruction says this.
-  if (!test) hud.say('msgStartHint', 8);
+  if (!test && !lessonRun) hud.say('msgStartHint', 8);
   requestAnimationFrame(frame);
 
   /** Put the car somewhere, at rest (used by automated page checks). */
@@ -677,5 +742,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu };
 }

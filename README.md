@@ -4,12 +4,13 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 7 of 10 complete.** You can take a full road test through a
-small Omani-style town among traffic and pedestrians, or the test-yard
-exercises, with an examiner who gives directions, records every fault, and
-gives a pass or fail with the reasons at the end. Every test can be watched
-again, from the start or from just before any fault, with graphs of the
-engine, speed and pedals. Free drive and yard practice are there too.
+**Status: phase 8 of 10 complete.** Seven lessons teach the controls,
+moving off, gears, roundabouts, the hill start, parking and the full route,
+with goals, hints and one to three stars, and suggest what to practise next.
+Then you can take a full road test through a small Omani-style town among
+traffic and pedestrians, or the test-yard exercises, with an examiner who
+gives directions, records every fault, and gives a pass or fail with the
+reasons. Every test and lesson can be watched again with graphs.
 
 ## Run it
 
@@ -71,6 +72,22 @@ wheels where it lies (it also happens by itself after six seconds).
 On a phone the mirror buttons (left, centre, right) sit under the seatbelt,
 lights and horn: tap to glance, hold to keep looking. The examiner counts
 mirror checks.
+
+**Lessons** (Help → Lessons, or `#lesson-controls`, `#lesson-gears`, ...):
+controls, moving off and stopping, changing gear, roundabouts, hill start,
+parking, and the full route. Each lesson is a short list of goals shown one at
+a time at the bottom of the screen, with a Hint button (the hint also appears
+by itself after 25 seconds without progress). Faults are shown as they happen,
+with a tip. Stars: three for a clean lesson (within the target time where
+there is one), two for at most two minor faults and nothing worse, one for
+finishing. Lessons are in `src/data/lessons.json`.
+
+**Practice suggestions.** Every fault, in lessons and tests, counts against a
+skill (observation, moving off, hill start, parking, roundabouts,
+junctions). The lesson list marks the lesson for the skill you get wrong most
+as “Suggested for you” and offers a button for it; older mistakes count for
+less over time, and three stars in a lesson takes its skill down. Stars, skill
+scores and test counts are saved in the browser (`localStorage`).
 
 **Modes** (Help, or the address): road test `#road-test`, yard test
 `#yard-test`, free drive in town `#town` (the default), yard practice `#yard`.
@@ -146,6 +163,7 @@ src/input/     keyboard, touch, input smoothing (later: gamepad, wheel, tilt)
 src/ui/        HUD, interface text, result screen, replay controls
 src/app/       wires the above together and runs the game loop
 src/replay/    recording a drive and the replay clock - pure TypeScript
+src/learning/  lessons, stars and practice suggestions - pure TypeScript
 src/data/      tuning, maps, the test yard and the examiner's rules (later: lessons, routes) as JSON
 src/debug/     the phase 1 debug page
 src/examiner/  the examiner: rule checks, yard manoeuvres, scoring - pure TypeScript
@@ -341,6 +359,6 @@ automated browser has no graphics card.
 5. **Examiner rule engine and test yard** — done
 6. **Full test route mode and result screen** — done
 7. **Replay and analysis graphs** — done
-8. Learning mode, lessons, adaptive practice
+8. **Learning mode, lessons, adaptive practice** — done
 9. Sound, effects, gamepad/wheel, tilt steering, quality presets, phone performance
 10. Menus, Arabic/English, polish, build, GitHub Pages deployment steps

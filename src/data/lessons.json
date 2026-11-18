@@ -1,0 +1,126 @@
+{
+  "note": "Lessons for learning mode. Goals are done in order. Stars: 3 = finished with no faults (and within targetS if given), 2 = finished with no serious or fail-level fault and at most twoStarMaxMinor minor faults, 1 = finished.",
+  "lessons": [
+    {
+      "id": "controls",
+      "skill": "observation",
+      "title": { "ar": "أدوات التحكم", "en": "The controls" },
+      "intro": {
+        "ar": "قبل أن تتحرك: اربط الحزام، شغّل المحرك، وتعرّف على المرايا والإشارات.",
+        "en": "Before you move: belt up, start the engine, and get to know the mirrors and indicators."
+      },
+      "map": "yard",
+      "start": { "x": 0, "z": 30, "headingDeg": 0 },
+      "goals": [
+        { "type": "seatbelt", "text": { "ar": "اربط حزام الأمان", "en": "Fasten your seatbelt" }, "hint": { "ar": "زر «الحزام» أعلى اليسار، أو مفتاح B.", "en": "The Belt button at the top left, or the B key." } },
+        { "type": "engineStart", "text": { "ar": "شغّل المحرك", "en": "Start the engine" }, "hint": { "ar": "اضغط القابض ثم «تشغيل»، أو مفتاح Enter.", "en": "Press the clutch, then Start (or the Enter key)." } },
+        { "type": "mirrors", "text": { "ar": "انظر في المرايا الثلاث", "en": "Check all three mirrors" }, "hint": { "ar": "أزرار المرايا: يسار ووسط ويمين، أو المفاتيح 7 و8 و9.", "en": "The mirror buttons left, centre and right, or the 7, 8 and 9 keys." } },
+        { "type": "indicators", "text": { "ar": "جرّب إشارتي اليسار واليمين", "en": "Try the left and right indicators" }, "hint": { "ar": "السهمان فوق المقود، أو المفتاحان Z و C.", "en": "The arrows above the wheel, or the Z and C keys." } }
+      ]
+    },
+    {
+      "id": "movingOff",
+      "skill": "movingOff",
+      "title": { "ar": "الانطلاق والتوقف", "en": "Moving off and stopping" },
+      "intro": {
+        "ar": "تحرّك بسلاسة دون أن ينطفئ المحرك، ثم توقف عند الخط الأبيض.",
+        "en": "Move off smoothly without stalling, then stop at the white line."
+      },
+      "map": "yard",
+      "start": { "x": -25, "z": 26, "headingDeg": 0 },
+      "goals": [
+        { "type": "engineStart", "belt": true, "text": { "ar": "اربط الحزام وشغّل المحرك", "en": "Belt up and start the engine" }, "hint": { "ar": "اضغط القابض ثم «تشغيل».", "en": "Press the clutch, then Start." } },
+        { "type": "gear", "gear": 1, "text": { "ar": "اضغط القابض واختر الغيار الأول", "en": "Press the clutch and select first gear" }, "hint": { "ar": "اسحب المقبض لليسار ثم للأعلى.", "en": "Push the lever left, then up." } },
+        { "type": "handbrake", "on": false, "text": { "ar": "انظر في المرآة وحرّر فرامل اليد", "en": "Check the mirror and release the handbrake" }, "hint": { "ar": "زر «فرامل اليد» حتى يصير «محرَّرة».", "en": "Tap the handbrake until it reads off." } },
+        { "type": "reachSpeed", "kmh": 8, "text": { "ar": "أعطِ وقوداً قليلاً وارفع القابض ببطء", "en": "A little gas, and bring the clutch up slowly" }, "hint": { "ar": "عند نقطة التعشيق (بين الخطين) أبطئ رفع القابض.", "en": "Slow down as the clutch reaches the bite point (between the lines)." } },
+        { "type": "manoeuvre", "id": "stopLine", "text": { "ar": "توقف ومقدمة السيارة عند الخط الأبيض", "en": "Stop with the front of the car at the white line" }, "hint": { "ar": "اضغط القابض قبل أن تقف حتى لا ينطفئ المحرك.", "en": "Press the clutch before you stop, so the engine does not stall." } }
+      ],
+      "targetS": 60
+    },
+    {
+      "id": "gears",
+      "skill": "gears",
+      "title": { "ar": "تبديل الغيارات", "en": "Changing gear" },
+      "intro": {
+        "ar": "انطلق بالأول، ثم بدّل إلى الثاني والثالث مع ازدياد السرعة، ثم توقف بأمان.",
+        "en": "Move off in first, change up to second and third as you speed up, then stop safely."
+      },
+      "map": "yard",
+      "start": { "x": 0, "z": 36, "headingDeg": 0 },
+      "goals": [
+        { "type": "gearsUsed", "gears": [1, 2, 3], "text": { "ar": "قُد بالغيار الأول ثم الثاني ثم الثالث", "en": "Drive in first, then second, then third" }, "hint": { "ar": "بدّل عند حوالي 2500 دورة: قابض، غيار، ثم ارفع القابض.", "en": "Change at about 2500 rpm: clutch, gear, clutch up." } },
+        { "type": "reachSpeed", "kmh": 30, "text": { "ar": "صل إلى 30 كم/س", "en": "Reach 30 km/h" }, "hint": { "ar": "في الغيار الثالث أعطِ وقوداً أكثر.", "en": "Give more gas in third." } },
+        { "type": "stop", "text": { "ar": "خفّف وتوقف تماماً قبل نهاية الساحة", "en": "Slow down and stop before the end of the yard" }, "hint": { "ar": "فرامل بهدوء، واضغط القابض قبل أن تقف.", "en": "Brake gently and press the clutch before you stop." } }
+      ],
+      "targetS": 60
+    },
+    {
+      "id": "roundabouts",
+      "skill": "roundabouts",
+      "title": { "ar": "الدوّارات", "en": "Roundabouts" },
+      "intro": {
+        "ar": "ادخل الدوّار الكبير بعد أن تعطي الأولوية لمن بداخله، وخذ المخرج الثاني، وأشّر يميناً قبل الخروج.",
+        "en": "Give way to traffic on the big roundabout, take the second exit, and signal right before you leave."
+      },
+      "map": "town",
+      "traffic": 6,
+      "start": { "lane": "av1:f0", "at": 12 },
+      "route": { "checkpoints": ["av2:f0"], "finish": { "lane": "av2:f0", "at": 35 } },
+      "goals": [
+        { "type": "route", "text": { "ar": "اتبع التعليمات واخرج إلى الشارع الرئيسي شرقاً، ثم توقف على اليمين", "en": "Follow the directions out onto the avenue east, then pull up on the right" }, "hint": { "ar": "الأولوية لمن داخل الدوّار. أشّر يميناً بعد المخرج الأول.", "en": "Traffic on the roundabout has priority. Signal right after the first exit." } }
+      ],
+      "targetS": 90
+    },
+    {
+      "id": "hillStart",
+      "skill": "hillStart",
+      "title": { "ar": "الانطلاق في المرتفع", "en": "Hill start" },
+      "intro": {
+        "ar": "اصعد المرتفع وتوقف عند الخط، ثم انطلق دون أن ترجع السيارة للخلف.",
+        "en": "Drive up the hill and stop at the line, then pull away without rolling back."
+      },
+      "map": "yard",
+      "start": { "x": -8, "z": 24, "headingDeg": 0 },
+      "goals": [
+        { "type": "engineStart", "belt": true, "text": { "ar": "اربط الحزام وشغّل المحرك", "en": "Belt up and start the engine" }, "hint": { "ar": "اضغط القابض ثم «تشغيل».", "en": "Press the clutch, then Start." } },
+        { "type": "manoeuvre", "id": "hillStart", "text": { "ar": "توقف عند الخط على المرتفع، وشدّ فرامل اليد، ثم انطلق", "en": "Stop at the line on the hill, set the handbrake, then pull away" }, "hint": { "ar": "وقود قليل، ارفع القابض حتى نقطة التعشيق، ثم حرّر فرامل اليد.", "en": "A little gas, clutch up to the bite point, then release the handbrake." } }
+      ],
+      "targetS": 90
+    },
+    {
+      "id": "parking",
+      "skill": "parking",
+      "title": { "ar": "الاصطفاف", "en": "Parking" },
+      "intro": {
+        "ar": "اصطف للخلف بين الأعمدة، ثم اصطف موازياً بجانب الرصيف. ببطء شديد، واستعمل المرايا.",
+        "en": "Reverse into the bay between the poles, then parallel park by the kerb. Very slowly, using the mirrors."
+      },
+      "map": "yard",
+      "start": { "x": 8, "z": -40, "headingDeg": 0 },
+      "goals": [
+        { "type": "engineStart", "belt": true, "text": { "ar": "اربط الحزام وشغّل المحرك", "en": "Belt up and start the engine" }, "hint": { "ar": "اضغط القابض ثم «تشغيل».", "en": "Press the clutch, then Start." } },
+        { "type": "manoeuvre", "id": "reverseBay", "text": { "ar": "اصطف للخلف بين الأعمدة الأربعة، ثم شدّ فرامل اليد", "en": "Reverse between the four poles, then set the handbrake" }, "hint": { "ar": "تقدّم أمام الموقف، ثم ارجع ببطء وأدر المقود لتدخل مستقيماً.", "en": "Drive past the bay, then reverse slowly, turning to go in straight." } },
+        { "type": "manoeuvre", "id": "parallel", "text": { "ar": "اصطف موازياً بجانب الرصيف، ثم شدّ فرامل اليد", "en": "Parallel park by the kerb, then set the handbrake" }, "hint": { "ar": "قف بمحاذاة العمود الأمامي، ارجع وأدر المقود يميناً، ثم يساراً عندما تصبح بزاوية 45°.", "en": "Stop level with the front pole, reverse turning right, then left once at 45 degrees." } }
+      ],
+      "targetS": 240
+    },
+    {
+      "id": "fullRoute",
+      "skill": "junctions",
+      "title": { "ar": "الجولة الكاملة", "en": "The full route" },
+      "intro": {
+        "ar": "جولة اختبار الطريق كاملة، مع المرور. هنا ترى أخطاءك فور حدوثها مع نصيحة لكل خطأ.",
+        "en": "The whole road test route, with traffic. Here you see each fault as it happens, with a tip."
+      },
+      "map": "town",
+      "traffic": 10,
+      "start": { "lane": "av1:f0", "at": 12 },
+      "route": { "checkpoints": ["c2:f0", "s2:f0", "e2:b0", "av2:b0", "c1:b0", "n1:b0", "w1:f0", "av1:f0"], "finish": { "lane": "av1:f0", "at": 40 } },
+      "goals": [
+        { "type": "route", "text": { "ar": "أكمل الجولة واتبع تعليمات الممتحن", "en": "Complete the route, following the examiner's directions" }, "hint": { "ar": "مرآة، إشارة، ثم انعطف. وانتبه للإشارات والمشاة.", "en": "Mirror, signal, then turn. Watch for signals and pedestrians." } }
+      ],
+      "twoStarMaxMinor": 4,
+      "targetS": 600
+    }
+  ]
+}
