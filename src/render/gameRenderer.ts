@@ -91,6 +91,8 @@ export class GameRenderer {
   private readonly sky: HemisphereLight;
   private readonly headlamps: SpotLight[] = [];
   private night = false;
+  /** Camera shake, metres; it dies away by itself. */
+  private shakeLevel = 0;
   private traffic: TrafficMeshes | null = null;
   private readonly mirrors: MirrorView[] = [];
   private mirrorCursor = 0;
@@ -198,6 +200,11 @@ export class GameRenderer {
   /** Move traffic meshes to match the traffic logic. */
   updateTraffic(cars: readonly TrafficCar[], people: readonly Pedestrian[], time: number): void {
     this.traffic?.update(cars, people, time);
+  }
+
+  /** Jolt the camera (a collision, a speed bump). */
+  shake(amount: number): void {
+    this.shakeLevel = Math.max(this.shakeLevel, amount);
   }
 
   /** Switch between day and night lighting. */
@@ -318,6 +325,15 @@ export class GameRenderer {
       this.tmpQuat.setFromAxisAngle(this.tmp.set(0, 1, 0), -this.lookYaw);
       cam.quaternion.copy(this.carQuat).multiply(this.tmpQuat);
       this.chaseReady = false;
+    }
+    if (this.shakeLevel > 0.002) {
+      const k = this.shakeLevel;
+      cam.position.x += (Math.random() - 0.5) * k;
+      cam.position.y += (Math.random() - 0.5) * k;
+      cam.position.z += (Math.random() - 0.5) * k;
+      this.shakeLevel *= Math.exp(-dt * 9);
+    } else {
+      this.shakeLevel = 0;
     }
     cam.updateProjectionMatrix();
 

@@ -24,7 +24,8 @@ export class ReplayPlayer {
   active = false;
   clock: ReplayClock | null = null;
   private viewUi: ReplayView | null = null;
-  private frame: Frame | undefined;
+  /** The frame last shown (for the replay's sound). */
+  frame: Frame | undefined;
   private camera = 0;
   private gameCamera: CameraMode = 'chase';
   /** Stand-ins the traffic meshes draw from. */

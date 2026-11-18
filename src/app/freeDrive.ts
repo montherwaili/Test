@@ -14,6 +14,8 @@ import { LessonSession } from './lessonSession';
 import { loadLessons } from '../learning/lesson';
 import { recordFaults, recordLesson, recordTest } from '../learning/progress';
 import { LessonsMenu } from '../ui/lessonsMenu';
+import { CarAudio } from '../audio/carAudio';
+import { loadSettings, type Settings } from '../ui/settingsStore';
 import { loadProgress, saveProgress } from '../ui/storage';
 import { LIGHT, Recording } from '../replay/recording';
 import type { ResultData } from '../ui/results';
@@ -178,6 +180,7 @@ export interface FreeDrive {
   player: ReplayPlayer | null;
   lesson: LessonSession | null;
   lessonsMenu: LessonsMenu;
+  audio: CarAudio;
   /** The car's physics body (for automated page checks). */
   body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
@@ -254,6 +257,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   let cameraIndex = 0;
   /** Seconds the car has been lying on its side or roof. */
   let flippedFor = 0;
+  let wasOnBump = false;
 
   const renderer = new GameRenderer(canvas, map, tuning, pickQuality());
   if (traffic) renderer.addTraffic(traffic.vehicles.cars, traffic.pedestrians.list);
@@ -419,6 +423,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     : null;
 
   const progress = loadProgress();
+  const settings: Settings = loadSettings();
+  const audio = new CarAudio(window);
+  audio.setVolume(settings.volume);
+  audio.setEnabled(settings.sound);
+  const vibrate = (pattern: number | number[]) => {
+    if (settings.vibration) navigator.vibrate?.(pattern);
+  };
   const lessonsMenu = new LessonsMenu(app, LESSONS, () => progress, startLesson);
   const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {
@@ -515,8 +526,14 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   function report(e: VehicleEvent): void {
     exam.noteEvent(e.type);
     // The examiner reports a stall as a fault; this message says what to do about it.
-    if (e.type === 'stall') hud.say('msgStalled', 6);
-    else if (e.type === 'gearGrind') hud.say(e.reason === 'clutch' ? 'msgGrindClutch' : 'msgGrindReverse');
+    if (e.type === 'stall') {
+      hud.say('msgStalled', 6);
+      vibrate(90);
+    } else if (e.type === 'gearGrind') {
+      hud.say(e.reason === 'clutch' ? 'msgGrindClutch' : 'msgGrindReverse');
+      audio.grind();
+      vibrate(40);
+    }
     else if (e.type === 'overRev') hud.say('msgOverRev');
   }
 
@@ -562,7 +579,10 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       // Drivers reconsider thirty times a second; in between they carry on as decided.
       const think = stats.steps % TRAFFIC_THINK_EVERY === 0;
       for (const e of traffic.step(dt, player, think, dt * TRAFFIC_THINK_EVERY)) {
-        if (e.type === 'honk') hud.say('msgHonk', 3);
+        if (e.type === 'honk') {
+          hud.say('msgHonk', 3);
+          audio.distantHorn();
+        }
       }
       trafficBodies.sync();
     }
@@ -585,6 +605,17 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     Object.assign(currPos, car.body.translation());
     Object.assign(currRot, car.body.rotation());
     exam.step(dt);
+    // Touching anything: a thump, a jolt and a buzz, harder the faster it happened.
+    if (exam.observation.contacts.length) {
+      const hit = Math.abs(vehicle.telemetry.wheelSpeed);
+      audio.impact(hit);
+      renderer.shake(Math.min(0.35, 0.05 + hit * 0.03));
+      vibrate(hit > 3 ? [120, 40, 120] : 60);
+    }
+    // Over a speed bump: a small jolt.
+    const onBump = vehicle.wheels.some((w) => map.surfaces.get(w.surface) === 'bump');
+    if (onBump && !wasOnBump && Math.abs(vehicle.telemetry.wheelSpeed) > 1.5) renderer.shake(0.03 + Math.abs(vehicle.telemetry.wheelSpeed) * 0.004);
+    wasOnBump = onBump;
     if (recording && stats.steps % FRAME_EVERY === 0 && !test?.ended && !lessonRun?.ended) recordFrame();
     lessonRun?.step({ ...exam.observation, running: vehicle.powertrain.state.running });
     test?.step({
@@ -637,12 +668,30 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       });
       renderer.updateTraffic(replay.cars, replay.people, r.signalTime);
       renderer.render(r.view, r.loose, elapsed);
+      // The engine sounds as it did, from the recorded revs and throttle.
+      const f = replay.frame;
+      if (f) {
+        audio.update({
+          rpm: f.car.rpm,
+          load: f.car.throttle,
+          running: f.car.rpm > 350,
+          cranking: false,
+          speed: f.car.speed,
+          slipAngleDeg: 0,
+          wheelspinRatio: 0,
+          brakeDecel: 0,
+          horn: false,
+          indicatorLit: (f.car.lights & (LIGHT.left | LIGHT.right)) !== 0,
+        });
+      }
+      if (!replay.clock?.playing) audio.quiet();
       stats.frames++;
       requestAnimationFrame(frame);
       return;
     }
 
-    if (!hud.helpOpen && !results.open && !lessonsMenu.open) stepper.advance(elapsed, simStep);
+    const paused = hud.helpOpen || results.open || lessonsMenu.open;
+    if (!paused) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
     lerpPose(prevPos, currPos, alpha, view.position);
@@ -685,6 +734,26 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     }
     if (traffic) renderer.updateTraffic(traffic.vehicles.cars, traffic.pedestrians.list, traffic.time);
     renderer.render(view, loose, elapsed);
+
+    if (paused) {
+      audio.quiet();
+    } else {
+      const tm = vehicle.telemetry;
+      let slip = 0;
+      for (const w of vehicle.wheels) if (w.grounded) slip = Math.max(slip, Math.abs(w.slipAngle));
+      audio.update({
+        rpm: tm.rpm,
+        load: tm.engineLoad,
+        running: tm.running,
+        cranking: controls.starter && controls.ignition,
+        speed: tm.wheelSpeed,
+        slipAngleDeg: (slip * 180) / Math.PI,
+        wheelspinRatio: tm.wheelspin ? tm.slipRatio : 0,
+        brakeDecel: controls.brake > 0.3 ? -tm.longitudinalAccel : 0,
+        horn: ancillaries.state.horn,
+        indicatorLit: ancillaries.lamps.left || ancillaries.lamps.right,
+      });
+    }
 
     const tm = vehicle.telemetry;
     hud.update({
@@ -742,5 +811,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu, audio };
 }
