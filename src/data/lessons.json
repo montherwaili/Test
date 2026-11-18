@@ -48,7 +48,7 @@
       "map": "yard",
       "start": { "x": 0, "z": 36, "headingDeg": 0 },
       "goals": [
-        { "type": "gearsUsed", "gears": [1, 2, 3], "text": { "ar": "قُد بالغيار الأول ثم الثاني ثم الثالث", "en": "Drive in first, then second, then third" }, "hint": { "ar": "بدّل عند حوالي 2500 دورة: قابض، غيار، ثم ارفع القابض.", "en": "Change at about 2500 rpm: clutch, gear, clutch up." } },
+        { "type": "gearsUsed", "gears": [1, 2, 3], "text": { "ar": "قُد بالغيار الأول ثم الثاني ثم الثالث", "en": "Drive in first, then second, then third" }, "hint": { "ar": "بدّل عند حوالي 2000 دورة (محرك ديزل): قابض، غيار، ثم ارفع القابض.", "en": "Change at about 2000 rpm (it is a diesel): clutch, gear, clutch up." } },
         { "type": "reachSpeed", "kmh": 30, "text": { "ar": "صل إلى 30 كم/س", "en": "Reach 30 km/h" }, "hint": { "ar": "في الغيار الثالث أعطِ وقوداً أكثر.", "en": "Give more gas in third." } },
         { "type": "stop", "text": { "ar": "خفّف وتوقف تماماً قبل نهاية الساحة", "en": "Slow down and stop before the end of the yard" }, "hint": { "ar": "فرامل بهدوء، واضغط القابض قبل أن تقف.", "en": "Brake gently and press the clutch before you stop." } }
       ],

@@ -718,6 +718,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   }));
   const scratch: Vec3 = { x: 0, y: 0, z: 0 };
 
+  /** What the controls were last frame, so their sounds play once per change. */
+  const heard = { handbrake: controls.handbrake > 0, gear: vehicle.powertrain.state.gear, belt: ancillaries.state.seatbelt, ignition: controls.ignition };
+
   let last = performance.now();
   function frame(now: number): void {
     const elapsed = Math.min((now - last) / 1000, 0.25);
@@ -805,6 +808,18 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     }
     if (traffic) renderer.updateTraffic(traffic.vehicles.cars, traffic.pedestrians.list, traffic.time);
     renderer.render(view, loose, elapsed);
+
+    // The little mechanical sounds of the controls being used.
+    const pulled = controls.handbrake > 0;
+    if (pulled !== heard.handbrake) audio.handbrake(pulled);
+    heard.handbrake = pulled;
+    const inGear = vehicle.powertrain.state.gear;
+    if (inGear !== heard.gear && inGear !== GEAR_NEUTRAL) audio.gearIn();
+    heard.gear = inGear;
+    if (ancillaries.state.seatbelt && !heard.belt) audio.seatbelt();
+    heard.belt = ancillaries.state.seatbelt;
+    if (controls.ignition !== heard.ignition) audio.key();
+    heard.ignition = controls.ignition;
 
     if (paused) {
       audio.quiet();

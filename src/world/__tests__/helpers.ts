@@ -118,7 +118,7 @@ export function accelerateTo(rig: Rig, c: DriveControls, targetKmh: number, maxS
     if (shiftStarted < 0) {
       c.throttle = 1;
       c.clutch = Math.max(0, c.clutch - DT / 0.4);
-      if (c.clutch === 0 && rig.vehicle.telemetry.rpm > 6200 && c.gear < top) {
+      if (c.clutch === 0 && rig.vehicle.telemetry.rpm > rig.vehicle.tuning.engine.redlineRpm - 300 && c.gear < top) {
         shiftStarted = t;
         shifted = false;
       }

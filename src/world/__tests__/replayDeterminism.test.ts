@@ -78,7 +78,9 @@ describe('replaying a drive from its recorded inputs', () => {
       original.step(c);
       if (i % 600 === 599) checkpoints.push(original.snapshot());
     }
-    expect(original.vehicle.telemetry.speed).toBeGreaterThan(0);
+    // The drive went somewhere (it ends braking, so the car may have stopped by now).
+    const last = checkpoints[checkpoints.length - 1]!.car;
+    expect(Math.hypot(last.x - checkpoints[0]!.car.x, last.z - checkpoints[0]!.car.z)).toBeGreaterThan(20);
     expect(checkpoints[1]!.car.x - checkpoints[0]!.car.x).not.toBe(0);
 
     // A fresh world, driven only by what was recorded.

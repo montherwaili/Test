@@ -12,7 +12,7 @@ describe('tuning file', () => {
   it('ships a valid default tuning', () => {
     const t = createDefaultTuning();
     expect(t.engine.idleRpm).toBe(800);
-    expect(t.engine.redlineRpm).toBe(6500);
+    expect(t.engine.redlineRpm).toBe(4500);
     expect(t.gearbox.forward).toHaveLength(5);
     expect(t.sim.stepHz).toBe(120);
   });

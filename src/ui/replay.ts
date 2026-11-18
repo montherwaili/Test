@@ -304,7 +304,7 @@ export class ReplayView {
     maxSpeed = Math.ceil(maxSpeed / 20) * 20;
 
     const strips: { key: StringKey; unit: string; max: number; lines: { get: (i: number) => number; colour: string; label?: StringKey; now: number }[] }[] = [
-      { key: 'graphRpm', unit: 'rpm', max: 7000, lines: [{ get: (i) => r.value(i, 'rpm'), colour: SERIES[0], now: now.car.rpm }] },
+      { key: 'graphRpm', unit: 'rpm', max: 5000, lines: [{ get: (i) => r.value(i, 'rpm'), colour: SERIES[0], now: now.car.rpm }] },
       { key: 'graphSpeed', unit: 'km/h', max: maxSpeed, lines: [{ get: (i) => Math.abs(r.value(i, 'speed')) * 3.6, colour: SERIES[0], now: Math.abs(now.car.speed) * 3.6 }] },
       {
         key: 'graphPedals',

@@ -175,13 +175,31 @@ comfortable seconds. A change of preset takes effect on reload.
 
 ### Sound and effects
 
-All sounds are made live with Web Audio (no sound files): the engine (pitch
-from the revs, louder and brighter with load, rumble at idle that phone
-speakers can play), intake roar, tyre squeal, road noise, horn, the indicator
-relay, a thump for knocks, a grind for a gear forced without the clutch, and
-other drivers' horns. Sound starts at the first touch or key (browsers
-require it) and pauses with the page. Knocks and speed bumps shake the camera
-and, on phones, vibrate.
+The car is a small **turbodiesel** with a manual gearbox: about 1.4 litres,
+205 N·m from 1800 to 2800 rpm, idle at 800 rpm, fuel cut-off at 4500 rpm
+(the rev counter runs to 5000). Change up at about 2000 rpm. It has the
+diesel's pull at low revs, so it is forgiving when moving off, and it cranks
+for a moment before it catches. The numbers are in `src/data/tuning.json`.
+
+All sounds are made by the game (no recordings), from a model of how such an
+engine makes noise (`src/audio/dieselSynth.ts`). Each combustion stroke is
+rendered on its own: the exhaust pulse ringing the pipe, the diesel knock
+ringing the block at a few kilohertz (the clatter, clearest at idle), the
+injector tick and the roar of combustion, with small differences from
+cylinder to cylinder and stroke to stroke so it never sounds like a buzzer.
+Four such loops (low and high revs, light and heavy load) are played at the
+engine's speed and blended by revs and load. Also:
+
+- starting: the key, the starter motor straining at every compression, the
+  engine catching; switching off: it spins down and rocks once on its mounts
+- the turbo whistling as it spools up under load, and a sigh when you lift
+- the handbrake ratchet and its release, the gear lever clunking into a gear,
+  the seatbelt buckle, the indicator relay's tick-tock, the horn
+- tyre squeal, road and wind noise, knocks (a thud and ringing panels), gears
+  grinding when forced in without the clutch, other drivers' horns
+
+Sound starts at the first touch or key (browsers require it) and pauses with
+the page. Knocks and speed bumps shake the camera and, on phones, vibrate.
 
 ## The debug page (`debug.html`)
 

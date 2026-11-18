@@ -1,12 +1,31 @@
 /**
- * The car's sounds, made live with the Web Audio API (no sound files):
- * engine, intake roar, tyre squeal, road noise, horn, indicator ticks,
- * and one-shot sounds for impacts, gear grinds and other cars' horns.
+ * The car's sounds through the Web Audio API. Everything is rendered at
+ * start-up from the diesel model in dieselSynth.ts (no sound files):
+ *
+ *   engine   four loops - low and high revs, light and heavy load - played at
+ *            the engine's speed and mixed by revs and load
+ *   starter  the starter motor dragging the engine through its compressions
+ *   coast    the engine turning with no fuel, spinning down after switch-off
+ *   turbo    the turbocharger's whistle as it spools up under load
+ *   tyres, road and wind noise, the horn
+ *   one-shots: handbrake ratchet, gear lever, seatbelt, indicator relay,
+ *            ignition key, knocks and the shudder as the engine stops
  *
  * Browsers only allow sound after the user has touched the page, so the
  * audio graph is built on the first touch, click or key press.
  */
-import { engineVoice, impactLoudness, roadNoise, tyreSqueal } from './soundModel';
+import {
+  renderBuckle,
+  renderCrankLoop,
+  renderCrunch,
+  renderEngineLoop,
+  renderGearClunk,
+  renderHandbrake,
+  renderKey,
+  renderRelay,
+  renderShudder,
+} from './dieselSynth';
+import { CRANK_REF_RPM, HIGH_REF_RPM, LOW_REF_RPM, dieselMix, impactLoudness, roadNoise, turboTarget, tyreSqueal } from './soundModel';
 
 export interface CarSoundState {
   rpm: number;
@@ -25,8 +44,17 @@ export interface CarSoundState {
   indicatorLit: boolean;
 }
 
+/**
+ * Sample rate the sounds are made at. The highest thing in them is the
+ * injector tick at about 5.6 kHz, well inside 24 kHz audio; the browser
+ * converts on playback. Half the work of rendering at 48 kHz.
+ */
+const SYNTH_RATE = 24000;
+
 /** How quickly levels follow their targets, s. */
-const SMOOTH = 0.05;
+const SMOOTH = 0.04;
+
+type Layer = { source: AudioBufferSourceNode; gain: GainNode };
 
 export class CarAudio {
   private ctx: AudioContext | null = null;
@@ -35,14 +63,21 @@ export class CarAudio {
   private enabled = true;
   private noise: AudioBuffer | null = null;
 
-  private engineOsc: OscillatorNode[] = [];
-  private engineFilter: BiquadFilterNode | null = null;
-  private engineGain: GainNode | null = null;
-  private roarGain: GainNode | null = null;
+  /** Engine layers; built one at a time after the first touch, so each may still be missing. */
+  private engine: Partial<Record<'lowLight' | 'lowHeavy' | 'highLight' | 'highHeavy', Layer>> = {};
+  private crank: Layer | null = null;
+  private coast: Layer | null = null;
+  private turboOsc: OscillatorNode | null = null;
+  private turboGain: GainNode | null = null;
   private tyreGain: GainNode | null = null;
   private roadGain: GainNode | null = null;
   private hornGain: GainNode | null = null;
+  private shots: Record<string, AudioBuffer> = {};
+
   private lastLit = false;
+  private wasTurning = false;
+  private boost = 0;
+  private lastTime = 0;
 
   constructor(target: Window) {
     // The first gesture unlocks audio.
@@ -65,9 +100,10 @@ export class CarAudio {
     return this.ctx !== null;
   }
 
-  /** The engine's main note right now, Hz (for checks). */
+  /** The engine's firing frequency as being played, Hz (for checks). */
   get engineFrequency(): number {
-    return this.engineOsc[0]?.frequency.value ?? 0;
+    const rate = this.engine.lowLight?.source.playbackRate.value ?? 0;
+    return (rate * LOW_REF_RPM) / 30;
   }
 
   setVolume(v: number): void {
@@ -84,22 +120,43 @@ export class CarAudio {
     if (this.master && this.ctx) this.master.gain.setTargetAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime, 0.05);
   }
 
+  private buffer(data: Float32Array): AudioBuffer {
+    const ctx = this.ctx!;
+    const b = ctx.createBuffer(1, data.length, SYNTH_RATE);
+    b.copyToChannel(data as Float32Array<ArrayBuffer>, 0);
+    return b;
+  }
+
+  private loop(data: Float32Array, out: AudioNode): Layer {
+    const ctx = this.ctx!;
+    const source = ctx.createBufferSource();
+    source.buffer = this.buffer(data);
+    source.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain).connect(out);
+    source.start();
+    return { source, gain };
+  }
+
   private start(): void {
     if (this.ctx) return;
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
     this.ctx = ctx;
+    const sr = SYNTH_RATE;
     this.master = ctx.createGain();
     this.master.gain.value = this.enabled ? this.volume : 0;
     // A gentle limiter so layered sounds never clip.
     const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -10;
-    limiter.ratio.value = 8;
+    limiter.threshold.value = -8;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 6;
     this.master.connect(limiter).connect(ctx.destination);
 
-    // Two seconds of white noise, shared by every noisy sound.
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    // Two seconds of white noise for the tyres, road and turbo.
+    const buf = ctx.createBuffer(1, sr * 2, sr);
     const data = buf.getChannelData(0);
     let seed = 12345;
     for (let i = 0; i < data.length; i++) {
@@ -108,49 +165,88 @@ export class CarAudio {
     }
     this.noise = buf;
 
-    // Engine: the firing note and two harmonics through a low-pass filter.
-    // Phone speakers cannot play 27 Hz, so the harmonics carry the idle.
-    this.engineFilter = ctx.createBiquadFilter();
-    this.engineFilter.type = 'lowpass';
-    this.engineFilter.Q.value = 1.2;
-    this.engineGain = ctx.createGain();
-    this.engineGain.gain.value = 0;
-    this.engineFilter.connect(this.engineGain).connect(this.master);
-    const parts: [OscillatorType, number, number][] = [
-      ['sawtooth', 1, 0.6],
-      ['square', 2, 0.25],
-      ['sawtooth', 4, 0.15],
-    ];
-    for (const [type, , level] of parts) {
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      const g = ctx.createGain();
-      g.gain.value = level;
-      osc.connect(g).connect(this.engineFilter);
-      osc.start();
-      this.engineOsc.push(osc);
-    }
+    // Engine: the cabin hears the low end fuller and the clatter a little softened.
+    const body = ctx.createBiquadFilter();
+    body.type = 'lowshelf';
+    body.frequency.value = 180;
+    body.gain.value = 4;
+    const tame = ctx.createBiquadFilter();
+    tame.type = 'lowpass';
+    tame.frequency.value = 7000;
+    const rumbleCut = ctx.createBiquadFilter();
+    rumbleCut.type = 'highpass';
+    rumbleCut.frequency.value = 28;
+    body.connect(tame).connect(rumbleCut).connect(this.master);
+    // The sounds needed first (idle, starter) are made now; the rest a piece at a
+    // time over the next frames, so the first touch does not stall the game.
+    const later: (() => void)[] = [];
+    this.engine.lowLight = this.loop(renderEngineLoop({ rpm: LOW_REF_RPM, load: 0.12, cycles: 8, seed: 101 }, sr), body);
+    this.crank = this.loop(renderCrankLoop({ rpm: CRANK_REF_RPM, cycles: 2, starter: true, seed: 105 }, sr), body);
+    later.push(
+      () => (this.engine.lowHeavy = this.loop(renderEngineLoop({ rpm: LOW_REF_RPM, load: 0.9, cycles: 8, seed: 102 }, sr), body)),
+      () => (this.engine.highLight = this.loop(renderEngineLoop({ rpm: HIGH_REF_RPM, load: 0.12, cycles: 16, seed: 103 }, sr), body)),
+      () => (this.engine.highHeavy = this.loop(renderEngineLoop({ rpm: HIGH_REF_RPM, load: 0.9, cycles: 16, seed: 104 }, sr), body)),
+      () => (this.coast = this.loop(renderCrankLoop({ rpm: CRANK_REF_RPM, cycles: 2, starter: false, seed: 106 }, sr), body)),
+    );
 
-    this.roarGain = this.noiseLayer('bandpass', 900, 0.8);
+    // Turbo: a thin whistle with a breath of air through it.
+    this.turboGain = ctx.createGain();
+    this.turboGain.gain.value = 0;
+    this.turboGain.connect(this.master);
+    this.turboOsc = ctx.createOscillator();
+    this.turboOsc.type = 'sine';
+    this.turboOsc.frequency.value = 2000;
+    this.turboOsc.connect(this.turboGain);
+    this.turboOsc.start();
+    const air = this.noiseLayer('bandpass', 3800, 3);
+    air.disconnect();
+    air.gain.value = 0.5;
+    air.connect(this.turboGain);
+
     this.tyreGain = this.noiseLayer('bandpass', 1400, 6);
     this.roadGain = this.noiseLayer('lowpass', 500, 0.7);
 
-    // Horn: two notes a third apart.
+    // Horn: a pair of disc horns a third apart, buzzy and bright.
     this.hornGain = ctx.createGain();
     this.hornGain.gain.value = 0;
     const hornFilter = ctx.createBiquadFilter();
-    hornFilter.type = 'lowpass';
-    hornFilter.frequency.value = 2200;
-    hornFilter.connect(this.hornGain).connect(this.master);
-    for (const f of [415, 523]) {
+    hornFilter.type = 'peaking';
+    hornFilter.frequency.value = 2500;
+    hornFilter.gain.value = 6;
+    const hornTop = ctx.createBiquadFilter();
+    hornTop.type = 'lowpass';
+    hornTop.frequency.value = 4500;
+    hornFilter.connect(hornTop).connect(this.hornGain).connect(this.master);
+    for (const f of [420, 510]) {
       const osc = ctx.createOscillator();
-      osc.type = 'square';
+      osc.type = 'sawtooth';
       osc.frequency.value = f;
       const g = ctx.createGain();
-      g.gain.value = 0.18;
+      g.gain.value = 0.12;
       osc.connect(g).connect(hornFilter);
       osc.start();
     }
+
+    // One-shots: small, so they go first.
+    later.unshift(() => {
+      this.shots.pull = this.buffer(renderHandbrake(true, sr));
+      this.shots.release = this.buffer(renderHandbrake(false, sr));
+      this.shots.clunk = this.buffer(renderGearClunk(sr));
+      this.shots.buckle = this.buffer(renderBuckle(sr));
+      this.shots.tick = this.buffer(renderRelay(true, sr));
+      this.shots.tock = this.buffer(renderRelay(false, sr));
+      this.shots.crunch = this.buffer(renderCrunch(sr));
+      this.shots.shudder = this.buffer(renderShudder(sr));
+      this.shots.key = this.buffer(renderKey(sr));
+    });
+    const next = () => {
+      const job = later.shift();
+      if (!job) return;
+      job();
+      setTimeout(next, 30);
+    };
+    setTimeout(next, 30);
+    this.lastTime = ctx.currentTime;
   }
 
   private noiseLayer(type: BiquadFilterType, freq: number, q: number): GainNode {
@@ -172,19 +268,49 @@ export class CarAudio {
   /** Follow the car (call every frame). */
   update(s: CarSoundState): void {
     const ctx = this.ctx;
-    if (!ctx || !this.engineFilter) return;
+    if (!ctx || !this.crank) return;
     const now = ctx.currentTime;
-    const v = engineVoice(s.rpm, s.load, s.running, s.cranking);
-    [1, 2, 4].forEach((mult, i) => this.engineOsc[i]!.frequency.setTargetAtTime(Math.max(1, v.freq * mult), now, SMOOTH));
-    this.engineFilter.frequency.setTargetAtTime(v.cutoff, now, SMOOTH);
-    this.engineGain!.gain.setTargetAtTime(v.gain * 0.5, now, SMOOTH);
-    this.roarGain!.gain.setTargetAtTime(v.roar * 0.25, now, SMOOTH);
+    const dt = Math.min(0.1, Math.max(0, now - this.lastTime));
+    this.lastTime = now;
+
+    const m = dieselMix(s.rpm, s.load, s.running, s.cranking);
+    const e = this.engine;
+    const set = (layer: Layer | null | undefined, rate: number, level: number, smooth: number) => {
+      if (!layer) return;
+      layer.source.playbackRate.setTargetAtTime(rate, now, 0.02);
+      layer.gain.gain.setTargetAtTime(level, now, smooth);
+    };
+    // Until the other layers are ready, the idle loop stands in for all of them.
+    const full = !!(e.lowHeavy && e.highLight && e.highHeavy);
+    const level = 0.55 * m.engine;
+    set(e.lowLight, m.lowRate, full ? level * m.low * m.light : level, SMOOTH);
+    set(e.lowHeavy, m.lowRate, level * m.low * m.heavy, SMOOTH);
+    set(e.highLight, m.highRate, level * m.high * m.light, SMOOTH);
+    set(e.highHeavy, m.highRate, level * m.high * m.heavy, SMOOTH);
+    set(this.crank, m.crankRate, 0.45 * m.crank, 0.02);
+    set(this.coast, m.crankRate, 0.4 * m.coast, 0.05);
+
+    // The engine coming to rest: one last rock on its mounts.
+    const turning = s.running || s.cranking || s.rpm > 150;
+    if (this.wasTurning && !turning) this.play('shudder', 0.5);
+    this.wasTurning = turning;
+
+    // Turbo: spools up slowly, drops quickly, and sighs when the pedal comes up at boost.
+    const target = s.running ? turboTarget(s.rpm, s.load) : 0;
+    const before = this.boost;
+    this.boost += (target - this.boost) * Math.min(1, dt * (target > this.boost ? 1.4 : 4));
+    if (before > 0.55 && target < 0.1 && this.boost < before - 0.05 && dt > 0) {
+      this.whoosh(before);
+    }
+    this.turboOsc!.frequency.setTargetAtTime(1800 + 3200 * this.boost, now, 0.05);
+    this.turboGain!.gain.setTargetAtTime(0.035 * this.boost * this.boost, now, 0.05);
+
     this.tyreGain!.gain.setTargetAtTime(tyreSqueal(s.slipAngleDeg, s.wheelspinRatio, s.brakeDecel, s.speed) * 0.35, now, SMOOTH);
     this.roadGain!.gain.setTargetAtTime(roadNoise(s.speed) * 0.18, now, 0.2);
-    this.hornGain!.gain.setTargetAtTime(s.horn ? 0.55 : 0, now, 0.01);
+    this.hornGain!.gain.setTargetAtTime(s.horn ? 0.6 : 0, now, 0.008);
     if (s.indicatorLit !== this.lastLit) {
       this.lastLit = s.indicatorLit;
-      this.click(s.indicatorLit ? 3200 : 2400, 0.12);
+      this.play(s.indicatorLit ? 'tick' : 'tock', 0.35);
     }
   }
 
@@ -192,38 +318,93 @@ export class CarAudio {
   quiet(): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    for (const g of [this.engineGain, this.roarGain, this.tyreGain, this.roadGain, this.hornGain]) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+    const gains = [...Object.values(this.engine).map((l) => l.gain), this.crank?.gain, this.coast?.gain, this.turboGain, this.tyreGain, this.roadGain, this.hornGain];
+    for (const g of gains) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
   }
 
-  /** A short burst of filtered noise. */
-  private burst(type: BiquadFilterType, freq: number, seconds: number, level: number): void {
+  private play(name: string, level: number, rate = 1): void {
+    const ctx = this.ctx;
+    const buf = this.shots[name];
+    if (!ctx || !buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const gain = ctx.createGain();
+    gain.gain.value = level;
+    src.connect(gain).connect(this.master!);
+    src.start();
+  }
+
+  /** Air let out of the intake when the pedal lifts at boost. */
+  private whoosh(boost: number): void {
     const ctx = this.ctx;
     if (!ctx || !this.noise) return;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
     const filter = ctx.createBiquadFilter();
-    filter.type = type;
-    filter.frequency.value = freq;
-    const gain = ctx.createGain();
+    filter.type = 'bandpass';
+    filter.Q.value = 1.5;
     const now = ctx.currentTime;
-    gain.gain.setValueAtTime(level, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + seconds);
+    filter.frequency.setValueAtTime(2600, now);
+    filter.frequency.exponentialRampToValueAtTime(900, now + 0.4);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.06 * boost, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
     src.connect(filter).connect(gain).connect(this.master!);
     src.start(now, Math.random() * 1.5);
-    src.stop(now + seconds + 0.05);
-  }
-
-  /** The indicator relay. */
-  private click(freq: number, level: number): void {
-    this.burst('highpass', freq, 0.025, level);
+    src.stop(now + 0.5);
   }
 
   impact(speed: number): void {
-    this.burst('lowpass', 260, 0.45, impactLoudness(speed));
+    const loud = impactLoudness(speed);
+    // A gentle nudge is a duller, lower thud.
+    this.play('crunch', loud, 0.75 + 0.35 * loud);
   }
 
+  /** Gears forced in without the clutch. */
   grind(): void {
-    this.burst('bandpass', 2600, 0.35, 0.35);
+    const ctx = this.ctx;
+    if (!ctx || !this.noise) return;
+    const now = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 2400;
+    filter.Q.value = 4;
+    // The teeth chattering against each other.
+    const chatter = ctx.createGain();
+    chatter.gain.value = 0;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 38;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.5;
+    lfo.connect(depth).connect(chatter.gain);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    src.connect(filter).connect(chatter).connect(gain).connect(this.master!);
+    src.start(now, Math.random() * 1.5);
+    lfo.start(now);
+    src.stop(now + 0.45);
+    lfo.stop(now + 0.45);
+  }
+
+  handbrake(pulled: boolean): void {
+    this.play(pulled ? 'pull' : 'release', 0.45);
+  }
+
+  gearIn(): void {
+    this.play('clunk', 0.4, 0.95 + Math.random() * 0.1);
+  }
+
+  seatbelt(): void {
+    this.play('buckle', 0.4);
+  }
+
+  key(): void {
+    this.play('key', 0.35);
   }
 
   /** Another car's horn, a little way off. */
@@ -233,15 +414,18 @@ export class CarAudio {
     const now = ctx.currentTime;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
-    gain.gain.setValueAtTime(0.12, now + 0.45);
+    gain.gain.linearRampToValueAtTime(0.1, now + 0.02);
+    gain.gain.setValueAtTime(0.1, now + 0.45);
     gain.gain.linearRampToValueAtTime(0, now + 0.5);
-    gain.connect(this.master!);
+    const far = ctx.createBiquadFilter();
+    far.type = 'lowpass';
+    far.frequency.value = 1800;
+    far.connect(gain).connect(this.master!);
     for (const f of [440, 554]) {
       const osc = ctx.createOscillator();
-      osc.type = 'square';
+      osc.type = 'sawtooth';
       osc.frequency.value = f;
-      osc.connect(gain);
+      osc.connect(far);
       osc.start(now);
       osc.stop(now + 0.55);
     }

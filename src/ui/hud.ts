@@ -39,7 +39,8 @@ export interface HudCallbacks {
   onNight: () => void;
 }
 
-const MAX_RPM = 7000;
+/** The rev counter runs to 5000: a diesel cuts out at 4500. */
+const MAX_RPM = 5000;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);

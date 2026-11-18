@@ -15,7 +15,7 @@ describe('engine torque model', () => {
   const t = createDefaultTuning().engine;
 
   it('nets exactly the torque curve at full throttle', () => {
-    for (const rpm of [800, 2000, 4000, 6000]) {
+    for (const rpm of [800, 2000, 3000, 4000]) {
       const net = indicatedTorque(rpm, throttleFill(1, rpm, t), t) - engineFriction(rpm, t);
       expect(net).toBeCloseTo(fullThrottleTorque(rpm, t), 6);
     }
@@ -27,7 +27,7 @@ describe('engine torque model', () => {
   });
 
   it('gives more torque for more pedal', () => {
-    for (const rpm of [1000, 3000, 6000]) {
+    for (const rpm of [1000, 2500, 4000]) {
       let last = -1;
       for (let p = 0; p <= 1.0001; p += 0.05) {
         const fill = throttleFill(p, rpm, t);
@@ -65,9 +65,11 @@ describe('engine torque model', () => {
         bestRpm = rpm;
       }
     }
-    expect(bestKw).toBeGreaterThan(60);
-    expect(bestKw).toBeLessThan(110);
-    expect(bestRpm).toBeGreaterThan(4500);
+    // A small turbodiesel: about 65 kW, peaking in the upper middle of a short rev range.
+    expect(bestKw).toBeGreaterThan(55);
+    expect(bestKw).toBeLessThan(90);
+    expect(bestRpm).toBeGreaterThan(3000);
+    expect(bestRpm).toBeLessThan(4400);
   });
 });
 
@@ -122,7 +124,7 @@ describe('engine running in neutral', () => {
     const car = idlingCar();
     const c = controls({ throttle: 1 });
     let t = 0;
-    while (car.telemetry.rpm < 6400 && t < 5) {
+    while (car.telemetry.rpm < car.tuning.engine.redlineRpm - 100 && t < 5) {
       drive(car, c, 1 / 120);
       t += 1 / 120;
     }

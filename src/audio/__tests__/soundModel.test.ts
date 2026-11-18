@@ -1,28 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { engineVoice, impactLoudness, roadNoise, tyreSqueal } from '../soundModel';
+import { HIGH_REF_RPM, LOW_REF_RPM, dieselMix, impactLoudness, roadNoise, turboTarget, tyreSqueal } from '../soundModel';
 
-describe('engine sound', () => {
-  it('fires twice per revolution: about 27 Hz at idle, 200 Hz at 6000 rpm', () => {
-    expect(engineVoice(800, 0.1, true, false).freq).toBeCloseTo(26.7, 1);
-    expect(engineVoice(6000, 1, true, false).freq).toBeCloseTo(200, 6);
+describe('diesel engine mix', () => {
+  it('plays the loops at the engine speed', () => {
+    const m = dieselMix(1800, 0.3, true, false);
+    expect(m.lowRate).toBeCloseTo(1800 / LOW_REF_RPM, 6);
+    expect(m.highRate).toBeCloseTo(1800 / HIGH_REF_RPM, 6);
   });
 
-  it('gets louder and brighter with load and revs', () => {
-    const idle = engineVoice(800, 0.1, true, false);
-    const pulling = engineVoice(3000, 0.9, true, false);
-    expect(pulling.gain).toBeGreaterThan(idle.gain);
-    expect(pulling.cutoff).toBeGreaterThan(idle.cutoff * 2);
-    expect(pulling.roar).toBeGreaterThan(idle.roar);
-    expect(pulling.gain).toBeLessThanOrEqual(1);
+  it('crossfades from the low-rev to the high-rev loop without a dip in level', () => {
+    expect(dieselMix(800, 0.1, true, false).low).toBe(1);
+    expect(dieselMix(3000, 0.1, true, false).high).toBe(1);
+    for (const rpm of [800, 1500, 1800, 2200, 3000]) {
+      const m = dieselMix(rpm, 0.5, true, false);
+      expect(m.low ** 2 + m.high ** 2).toBeCloseTo(1, 6);
+      expect(m.light ** 2 + m.heavy ** 2).toBeCloseTo(1, 6);
+    }
   });
 
-  it('fades as a stalled engine spins down, and is silent when stopped', () => {
-    expect(engineVoice(300, 0, false, false).gain).toBeLessThan(0.15);
-    expect(engineVoice(0, 0, false, false).gain).toBe(0);
+  it('sounds heavier and louder under load', () => {
+    const idle = dieselMix(800, 0.1, true, false);
+    const pulling = dieselMix(2500, 0.9, true, false);
+    expect(idle.light).toBe(1);
+    expect(pulling.heavy).toBe(1);
+    expect(pulling.engine).toBeGreaterThan(idle.engine);
+    expect(pulling.engine).toBeLessThanOrEqual(1);
   });
 
-  it('turns over audibly while cranking', () => {
-    expect(engineVoice(200, 0, false, true).gain).toBeGreaterThan(0.1);
+  it('cranks with the starter, then runs; switched off it spins down to silence', () => {
+    const cranking = dieselMix(200, 0, false, true);
+    expect(cranking.crank).toBeGreaterThan(0.5);
+    expect(cranking.engine).toBe(0);
+    const running = dieselMix(800, 0.1, true, false);
+    expect(running.crank).toBe(0);
+    expect(running.engine).toBeGreaterThan(0.3);
+    expect(dieselMix(400, 0, false, false).coast).toBeGreaterThan(0.2);
+    const stopped = dieselMix(0, 0, false, false);
+    expect(stopped.engine + stopped.crank + stopped.coast).toBe(0);
+  });
+
+  it('the turbo only spools with revs and load', () => {
+    expect(turboTarget(800, 1)).toBe(0);
+    expect(turboTarget(3000, 0.1)).toBe(0);
+    expect(turboTarget(3000, 1)).toBe(1);
+    expect(turboTarget(2000, 0.6)).toBeGreaterThan(0);
   });
 });
 

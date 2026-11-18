@@ -445,7 +445,7 @@ const strips: { canvas: HTMLCanvasElement; options: StripOptions }[] = [
     canvas: chartCanvas('rpm'),
     options: {
       series: [{ channel: 'rpm', label: 'Engine speed', color: 0 }],
-      range: [0, 7000],
+      range: [0, 5000],
       ticks: 2,
       window: WINDOW_S,
       timeAxis: false,
@@ -642,7 +642,7 @@ function draw(): void {
   drawDial(tach, theme, {
     value: Math.abs(t.rpm),
     min: 0,
-    max: 7000,
+    max: 5000,
     majorStep: 1000,
     minorStep: 250,
     labelDivisor: 1000,

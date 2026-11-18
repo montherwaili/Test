@@ -64,8 +64,9 @@ export function accelerateTo(
   c: CarControls,
   targetKmh: number,
   maxSeconds = 120,
-  shiftRpm = 6200,
+  shiftRpm?: number,
 ): number {
+  const shiftAt = shiftRpm ?? car.tuning.engine.redlineRpm - 300;
   const topGear = car.tuning.gearbox.forward.length;
   c.clutch = 1;
   c.gear = Math.max(1, c.gear);
@@ -78,7 +79,7 @@ export function accelerateTo(
     if (shiftStarted < 0) {
       c.throttle = 1;
       c.clutch = Math.max(0, c.clutch - DT / 0.4);
-      if (c.clutch === 0 && car.telemetry.rpm > shiftRpm && c.gear < topGear) {
+      if (c.clutch === 0 && car.telemetry.rpm > shiftAt && c.gear < topGear) {
         shiftStarted = t;
         shifted = false;
       }
