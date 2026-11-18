@@ -1,0 +1,13 @@
+{
+  "note": "Road test routes through the town. Checkpoints are lanes the route must use, in order; the lanes between them are planned automatically. The finish is where the examiner asks the learner to pull over.",
+  "routes": [
+    {
+      "id": "townLoop",
+      "title": { "ar": "جولة المدينة", "en": "Town loop" },
+      "start": { "lane": "av1:f0", "at": 12 },
+      "checkpoints": ["c2:f0", "s2:f0", "e2:b0", "av2:b0", "c1:b0", "n1:b0", "w1:f0", "av1:f0"],
+      "finish": { "lane": "av1:f0", "at": 40 },
+      "timeLimitS": 900
+    }
+  ]
+}

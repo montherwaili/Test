@@ -8,6 +8,9 @@ import yardJson from '../data/maps/yard.json';
 import type { ManoeuvreDef } from '../examiner/yard';
 import { getLang, t } from '../ui/i18n';
 import { ExamSession } from './examining';
+import { ROAD_ROUTE, TestSession } from './testSession';
+import { ResultsScreen } from '../ui/results';
+import type { GameMode } from '../ui/hud';
 import { InputFilter } from '../input/inputFilter';
 import { Keyboard, type Action } from '../input/keyboard';
 import { TouchControls } from '../input/touch';
@@ -27,7 +30,7 @@ import { createDefaultTuning } from '../sim/tuning';
 import { Vehicle, type DriveControls, type Quat, type Vec3, type VehicleEvent } from '../sim/vehicle';
 import { Hud } from '../ui/hud';
 import type { StringKey } from '../ui/i18n';
-import { buildMap, surfaceHeight, type MapDef } from '../world/map';
+import { buildMap, surfaceHeight, type BuiltMap, type MapDef } from '../world/map';
 import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
@@ -53,14 +56,51 @@ const AUTO_RIGHT_AFTER = 6;
 /** A tap on Start cranks for at most this long, s. */
 const STARTER_ASSIST = 1.5;
 
-/** Which map to load: from the address (#yard, #town, ?map=yard, ?map=track). */
-function mapChoice(): 'town' | 'yard' | 'track' {
+/** Address names for each mode (#road-test, #yard, ...). */
+const MODE_HASH: Record<GameMode, string> = {
+  town: 'town',
+  yard: 'yard',
+  roadTest: 'road-test',
+  yardTest: 'yard-test',
+  track: 'track',
+};
+
+/** Which mode to run: from the address (#road-test, #yard, ?map=track, ...); free drive in town otherwise. */
+function modeChoice(): GameMode {
   const hash = location.hash.replace('#', '');
   const query = new URLSearchParams(location.search).get('map') ?? '';
   for (const v of [hash, query]) {
-    if (v === 'yard' || v === 'track' || v === 'town') return v;
+    for (const [mode, name] of Object.entries(MODE_HASH) as [GameMode, string][]) if (v === name) return mode;
   }
   return 'town';
+}
+
+/** Start a mode afresh. */
+function switchMode(mode: GameMode): void {
+  location.hash = MODE_HASH[mode];
+  location.reload();
+}
+
+/** Lines for the result map: the lane centre lines in town, the bays and apron in the yard. */
+function mapLines(map: BuiltMap, yard: boolean): { x: number; z: number }[][] {
+  if (!yard && map.network) {
+    return [...map.network.lanes.values()].map((l) => l.path.points.filter((_, i, a) => i % 3 === 0 || i === a.length - 1));
+  }
+  const rect = (cx: number, cz: number, w: number, l: number) => [
+    { x: cx - w / 2, z: cz - l / 2 },
+    { x: cx + w / 2, z: cz - l / 2 },
+    { x: cx + w / 2, z: cz + l / 2 },
+    { x: cx - w / 2, z: cz + l / 2 },
+    { x: cx - w / 2, z: cz - l / 2 },
+  ];
+  const lines = map.def.roads.map((r) => {
+    const cx = (r.from[0] + r.to[0]) / 2;
+    const cz = (r.from[1] + r.to[1]) / 2;
+    return rect(cx, cz, r.width, Math.abs(r.to[1] - r.from[1]));
+  });
+  for (const m of map.def.markings) if (m.type === 'rect') lines.push(rect(m.center[0], m.center[1], m.size[0], m.size[1]));
+  for (const m of map.def.markings) if (m.type === 'line') lines.push([{ x: m.from[0], z: m.from[1] }, { x: m.to[0], z: m.to[1] }]);
+  return lines;
 }
 
 function pickQuality(): RenderQuality {
@@ -104,6 +144,8 @@ export interface FreeDrive {
   teleport: (x: number, z: number, heading: number) => void;
   traffic: Traffic | null;
   exam: ExamSession;
+  test: TestSession | null;
+  results: ResultsScreen;
   /** The car's physics body (for automated page checks). */
   body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
@@ -114,13 +156,23 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const tuning = createDefaultTuning();
   const physics = new PhysicsWorld(tuning.sim.stepHz, tuning.body.gravity);
   // The town by default; #yard (or ?map=yard) is the test yard, ?map=track the bare test track.
-  const which = mapChoice();
+  const mode = modeChoice();
+  const testing = mode === 'roadTest' || mode === 'yardTest';
+  const inYard = mode === 'yard' || mode === 'yardTest';
   const map =
-    which === 'track'
+    mode === 'track'
       ? buildMap(testTrack as MapDef, physics)
-      : which === 'yard'
+      : inYard
         ? buildMap(yardJson as unknown as MapDef, physics)
         : buildTown(physics);
+  // The road test starts where its route does.
+  if (mode === 'roadTest' && map.network) {
+    const lane = map.network.lane(ROAD_ROUTE.start.lane);
+    const p = lane.path.pointAt(ROAD_ROUTE.start.at);
+    const d = lane.path.directionAt(ROAD_ROUTE.start.at);
+    map.spawn.position = { x: p.x, y: 0, z: p.z };
+    map.spawn.heading = Math.atan2(d.x, -d.z);
+  }
   const network = map.network;
   const surfaceHeightAt = (x: number, z: number) => surfaceHeight(map, x, z);
   const car = physics.createCar(tuning, map.spawn.position, map.spawn.heading);
@@ -158,12 +210,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onReset: () => handle({ type: 'reset' }),
     onNight: () => handle({ type: 'night' }),
     onRightCar: () => handle({ type: 'rightCar' }),
-    map: which,
-    onSwitchMap: () => {
-      // The page is rebuilt for the other map (a fresh start, as at the real test centre).
-      location.hash = which === 'yard' ? 'town' : 'yard';
-      location.reload();
-    },
+    mode,
+    // Each mode starts afresh, as at the real test centre.
+    onMode: switchMode,
   });
 
   // Poses either side of "now", for smooth drawing between fixed steps.
@@ -277,15 +326,24 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     traffic,
     trafficBodies,
     tuning,
-    which === 'yard' ? (yardJson.manoeuvres as ManoeuvreDef[]) : [],
+    inYard ? (yardJson.manoeuvres as ManoeuvreDef[]) : [],
     {
-      onFault: (f) => hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()]),
+      // In a test the examiner keeps the faults to himself until the end, as a real one does.
+      onFault: (f) => (test ? test.onFault(f) : hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()])),
       onManoeuvre: (def, event, ok) => {
         if (event === 'start') hud.sayText(`${t('msgManoeuvreStart')}: ${def.title[getLang()]}`, 'info', 4);
         else hud.sayText(`${t(ok ? 'msgManoeuvreOk' : 'msgManoeuvreDone')}: ${def.title[getLang()]}`, ok ? 'good' : 'info', 4);
       },
     },
   );
+
+  const results = new ResultsScreen(app, {
+    onRetry: () => switchMode(mode),
+    onFreeDrive: () => switchMode(inYard ? 'yard' : 'town'),
+  });
+  const test = testing
+    ? new TestSession(mode === 'roadTest' ? 'road' : 'yard', exam, map.network, hud, mapLines(map, inYard), (r) => results.show(r))
+    : null;
 
   function report(e: VehicleEvent): void {
     exam.noteEvent(e.type);
@@ -350,6 +408,15 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     Object.assign(currPos, car.body.translation());
     Object.assign(currRot, car.body.rotation());
     exam.step(dt);
+    test?.step({
+      time: vehicle.time,
+      dt,
+      x: currPos.x,
+      z: currPos.z,
+      headingDeg: (vehicle.telemetry.heading * 180) / Math.PI,
+      speed: vehicle.telemetry.wheelSpeed,
+      handbrake: controls.handbrake > 0,
+    });
     stats.steps++;
 
     if (currPos.y < -30) reset(); // drove off the edge of the world
@@ -381,7 +448,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     const elapsed = Math.min((now - last) / 1000, 0.25);
     last = now;
     if (elapsed > 0) stats.fps += (1 / elapsed - stats.fps) * 0.05;
-    if (!hud.helpOpen) stepper.advance(elapsed, simStep);
+    if (!hud.helpOpen && !results.open) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
     lerpPose(prevPos, currPos, alpha, view.position);
@@ -466,7 +533,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   app.addEventListener('click', (e) => (e.target as HTMLElement | null)?.closest('button')?.blur());
   // Let the car settle on its springs before the first picture.
   for (let i = 0; i < tuning.sim.stepHz; i++) simStep(stepper.dt);
-  hud.say('msgStartHint', 8);
+  // In a test the examiner's own instruction says this.
+  if (!test) hud.say('msgStartHint', 8);
   requestAnimationFrame(frame);
 
   /** Put the car somewhere, at rest (used by automated page checks). */
@@ -480,5 +548,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results };
 }

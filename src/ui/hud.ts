@@ -21,11 +21,14 @@ export interface HudState {
   speedLimit: number | null;
 }
 
+/** Free drive in the town or yard, the two tests, or the bare test track. */
+export type GameMode = 'town' | 'yard' | 'roadTest' | 'yardTest' | 'track';
+
 export interface HudCallbacks {
-  /** Switch between the town and the test yard. */
-  onSwitchMap: () => void;
-  /** Which map is showing, so the switch button names the other one. */
-  map: 'town' | 'yard' | 'track';
+  /** Switch to another mode (each starts afresh). */
+  onMode: (mode: GameMode) => void;
+  /** The mode now running. */
+  mode: GameMode;
   onRightCar: () => void;
   onCamera: () => void;
   onReset: () => void;
@@ -54,6 +57,11 @@ export class Hud {
   private readonly lamps: Record<'engine' | 'handbrake' | 'seatbelt' | 'lights', HTMLElement>;
   private readonly toast: HTMLElement;
   private readonly faultCount: HTMLElement;
+  private readonly instruction: HTMLElement;
+  private readonly instructionText: HTMLElement;
+  private readonly instructionIcon: HTMLElement;
+  private instructionTimer = 0;
+  private instructionSource: () => string = () => '';
   private counts = { minor: 0, serious: 0, fail: 0 };
   private readonly rightButton: HTMLButtonElement;
   private readonly cameraButton: HTMLButtonElement;
@@ -128,6 +136,12 @@ export class Hud {
     this.label(this.rightButton, 'rightCar');
     this.rightButton.addEventListener('click', callbacks.onRightCar);
 
+    this.instruction = el('div', 'instruction', this.root);
+    this.instruction.hidden = true;
+    this.instruction.setAttribute('role', 'status');
+    this.instructionIcon = el('span', 'icon', this.instruction);
+    this.instructionText = el('span', '', this.instruction);
+
     this.toast = el('div', 'toast', this.root);
     this.toast.setAttribute('role', 'status');
     this.toast.hidden = true;
@@ -185,6 +199,17 @@ export class Hud {
   /** Offer (or stop offering) to put a flipped car back on its wheels. */
   showRightCar(show: boolean): void {
     if (this.rightButton.hidden === show) this.rightButton.hidden = !show;
+  }
+
+  /** Show what the examiner asks, with an arrow; it stays up for a while. */
+  instruct(icon: string, text: string | (() => string), seconds = 9): void {
+    this.instructionIcon.textContent = icon;
+    // Text given as a function is redrawn when the language changes.
+    this.instructionSource = typeof text === 'function' ? text : () => text;
+    this.instructionText.textContent = this.instructionSource();
+    this.instruction.hidden = false;
+    window.clearTimeout(this.instructionTimer);
+    this.instructionTimer = window.setTimeout(() => (this.instruction.hidden = true), seconds * 1000);
   }
 
   /** Show a fault the examiner has just recorded, and count it. */
@@ -255,7 +280,19 @@ export class Hud {
     const link = el('a', '', foot);
     link.href = './debug.html';
     this.label(link, 'debugLink');
-    this.button(foot, callbacks.map === 'yard' ? 'goTown' : 'goYard', callbacks.onSwitchMap);
+    const modes = el('div', 'help-modes', card);
+    const modeButtons: [GameMode, StringKey][] = [
+      ['roadTest', 'testRoad'],
+      ['yardTest', 'testYard'],
+      ['town', 'freeDrive'],
+      ['yard', 'practiseYard'],
+    ];
+    for (const [mode, key] of modeButtons) {
+      const b = this.button(modes, key, () => callbacks.onMode(mode));
+      if (mode === callbacks.mode) b.classList.add('primary');
+    }
+    // Keep the mode buttons above the rest of the footer.
+    card.insertBefore(modes, foot);
     this.button(foot, 'night', callbacks.onNight);
     this.button(foot, 'reset', () => {
       this.toggleHelp(false);
@@ -289,6 +326,7 @@ export class Hud {
     this.last.camera = '';
     delete this.lamps.lights.dataset['key'];
     this.renderCounts();
+    this.instructionText.textContent = this.instructionSource();
     const toastKey = this.toast.dataset['key'] as StringKey | undefined;
     if (toastKey && !this.toast.hidden) this.toast.textContent = t(toastKey);
   }

@@ -85,6 +85,11 @@ export class ExamSession {
     };
   }
 
+  /** Time of the last step watched. */
+  get lastTime(): number {
+    return this.obs.time;
+  }
+
   /** Car events from this step (stalls), passed on with the next observation. */
   noteEvent(type: string): void {
     this.events.push(type);

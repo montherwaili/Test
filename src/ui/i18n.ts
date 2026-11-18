@@ -76,6 +76,56 @@ const STRINGS = {
   mirrorLeft: { ar: 'مرآة يسار', en: 'Left mirror' },
   mirrorCentre: { ar: 'مرآة وسط', en: 'Mirror' },
   mirrorRight: { ar: 'مرآة يمين', en: 'Right mirror' },
+  testRoad: { ar: 'اختبار الطريق', en: 'Road test' },
+  testYard: { ar: 'اختبار الساحة', en: 'Yard test' },
+  practiseYard: { ar: 'تدريب في الساحة', en: 'Practise in the yard' },
+  instrStart: {
+    ar: 'شغّل السيارة، وعندما تكون جاهزاً تحرك وتابع الطريق.',
+    en: 'Start the car, and move off when you are ready. Follow the road ahead.',
+  },
+  instrStraight: { ar: 'عند التقاطع القادم، استمر مباشرة.', en: 'At the next junction, go straight on.' },
+  instrLeft: { ar: 'عند التقاطع القادم، انعطف يساراً.', en: 'At the next junction, turn left.' },
+  instrRight: { ar: 'عند التقاطع القادم، انعطف يميناً.', en: 'At the next junction, turn right.' },
+  instrRoundabout: { ar: 'عند الدوّار، خذ المخرج {n}.', en: 'At the roundabout, take the {n} exit.' },
+  ord1: { ar: 'الأول', en: 'first' },
+  ord2: { ar: 'الثاني', en: 'second' },
+  ord3: { ar: 'الثالث', en: 'third' },
+  ord4: { ar: 'الرابع', en: 'fourth' },
+  instrFinish: {
+    ar: 'أوقف السيارة على اليمين في مكان آمن، وشدّ فرامل اليد.',
+    en: 'Pull up on the right when it is safe, and set the handbrake.',
+  },
+  instrOffRoute: { ar: 'ليس من هنا. سأعيدك إلى المسار.', en: 'Not that way. I will take you back on route.' },
+  instrYard: {
+    ar: 'نفّذ التمارين الأربعة بأي ترتيب: التوقف عند الخط، المرتفع، الاصطفاف للخلف، والاصطفاف الموازي.',
+    en: 'Do the four exercises in any order: stop at the line, hill start, reverse parking, parallel parking.',
+  },
+  msgTestEnded: { ar: 'انتهى الاختبار', en: 'The test is over' },
+  msgTimeUp: { ar: 'انتهى وقت الاختبار', en: 'Time is up' },
+  resPass: { ar: 'نجحت', en: 'Passed' },
+  resFail: { ar: 'لم تنجح', en: 'Not passed' },
+  reasonFailFault: { ar: 'خطأ يؤدي إلى الرسوب', en: 'A fault that fails the test' },
+  reasonTooManySerious: { ar: 'خطأ جسيم', en: 'A serious fault' },
+  reasonTooManyMinor: { ar: 'أخطاء بسيطة أكثر من المسموح', en: 'More minor faults than allowed' },
+  reasonIncomplete: { ar: 'لم يكتمل الاختبار', en: 'The test was not completed' },
+  resDuration: { ar: 'المدة', en: 'Time' },
+  resDistance: { ar: 'المسافة', en: 'Distance' },
+  resMinor: { ar: 'بسيطة', en: 'Minor' },
+  resSerious: { ar: 'جسيمة', en: 'Serious' },
+  resFails: { ar: 'رسوب', en: 'Fail' },
+  resFaults: { ar: 'الأخطاء', en: 'Faults' },
+  resNoFaults: { ar: 'لا أخطاء. قيادة ممتازة!', en: 'No faults. Excellent driving!' },
+  resManoeuvres: { ar: 'التمارين', en: 'Exercises' },
+  resNotDone: { ar: 'لم يُنفَّذ', en: 'Not done' },
+  resTryAgain: { ar: 'أعد الاختبار', en: 'Try again' },
+  resFreeDrive: { ar: 'قيادة حرة', en: 'Free drive' },
+  resMap: { ar: 'مسارك وأماكن الأخطاء', en: 'Your drive and where the faults were' },
+  resUnverified: {
+    ar: 'القواعد افتراضية ولم تُطابق بعد مع اختبار شرطة عُمان السلطانية.',
+    en: 'The rules are defaults, not yet checked against the Royal Oman Police test.',
+  },
+  unitKm: { ar: 'كم', en: 'km' },
+  unitM: { ar: 'م', en: 'm' },
   msgReset: { ar: 'أُعيدت السيارة إلى نقطة البداية', en: 'Car returned to the start' },
   msgRotate: {
     ar: 'أدر الهاتف أفقياً لتحكم أسهل',
@@ -125,8 +175,10 @@ export function getLang(): Lang {
   return current;
 }
 
-export function t(key: StringKey): string {
-  return STRINGS[key][current];
+export function t(key: StringKey, vars?: Record<string, string>): string {
+  let text: string = STRINGS[key][current];
+  if (vars) for (const [k, v] of Object.entries(vars)) text = text.replace(`{${k}}`, v);
+  return text;
 }
 
 /** Apply a language to the document (text direction included) and tell listeners. */

@@ -4,10 +4,11 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 5 of 10 complete.** You can drive a manual car around a small
-Omani-style town among traffic and pedestrians, or practise the test-yard
-manoeuvres, while an examiner watches and records every fault. There is no
-full test route or result screen yet (phase 6).
+**Status: phase 6 of 10 complete.** You can take a full road test through a
+small Omani-style town among traffic and pedestrians, or the test-yard
+exercises, with an examiner who gives directions, records every fault, and
+gives a pass or fail with the reasons at the end. Free drive and yard practice
+are there too. No replays yet (phase 7).
 
 ## Run it
 
@@ -70,8 +71,21 @@ On a phone the mirror buttons (left, centre, right) sit under the seatbelt,
 lights and horn: tap to glance, hold to keep looking. The examiner counts
 mirror checks.
 
-**Test yard:** open Help and choose “Test yard” (or add `#yard` to the
-address). It has four exercises: stop at the line, hill start, reverse parking
+**Modes** (Help, or the address): road test `#road-test`, yard test
+`#yard-test`, free drive in town `#town` (the default), yard practice `#yard`.
+
+In the **road test** the examiner tells you where to go (“at the roundabout,
+take the second exit”) a little before each junction, and redirects you if you
+take a wrong turn. At the end you are asked to pull up on the right and set
+the handbrake. As in a real test, faults are not shown while you drive; the
+result screen lists them at the end with a tip for each, the time, and a map
+of where they happened. A collision ends the test at once. The route is in
+`src/data/routes.json` (checkpoint lanes; the rest is planned automatically).
+
+The **yard test** ends when all four exercises have been done. In free drive
+and yard practice, faults are shown as they happen.
+
+**Test yard:** open Help and choose a yard mode. It has four exercises: stop at the line, hill start, reverse parking
 between poles, and parallel parking. Drive into an exercise's area and the
 examiner announces it; finish a parking exercise by stopping with the
 handbrake on (or in neutral).
@@ -294,7 +308,7 @@ automated browser has no graphics card.
 3. **Town: road graph, roundabouts, junctions, signs, signals, slopes** — done
 4. **Traffic AI and pedestrians** — done
 5. **Examiner rule engine and test yard** — done
-6. Full test route mode and result screen
+6. **Full test route mode and result screen** — done
 7. Replay and analysis graphs
 8. Learning mode, lessons, adaptive practice
 9. Sound, effects, gamepad/wheel, tilt steering, quality presets, phone performance
