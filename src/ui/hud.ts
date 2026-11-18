@@ -1,6 +1,7 @@
 /** Heads-up display: instruments, warning lamps, messages and the help panel. */
 import { KEY_HELP } from '../input/keyboard';
 import { getLang, onLangChange, setLang, t, type StringKey } from './i18n';
+import { onPress } from './press';
 
 export interface HudState {
   speedKmh: number;
@@ -82,7 +83,7 @@ export class Hud {
     helpButton.classList.add('btn-help');
     this.cameraButton = el('button', 'hud-btn', top);
     this.cameraButton.type = 'button';
-    this.cameraButton.addEventListener('click', callbacks.onCamera);
+    onPress(this.cameraButton, callbacks.onCamera);
     // "Camera: " is dropped on small screens, leaving just the view's name.
     const cameraPrefix = el('span', 'cam-prefix', this.cameraButton);
     this.label(cameraPrefix, 'camera');
@@ -134,7 +135,7 @@ export class Hud {
     this.rightButton.type = 'button';
     this.rightButton.hidden = true;
     this.label(this.rightButton, 'rightCar');
-    this.rightButton.addEventListener('click', callbacks.onRightCar);
+    onPress(this.rightButton, callbacks.onRightCar);
 
     this.instruction = el('div', 'instruction', this.root);
     this.instruction.hidden = true;

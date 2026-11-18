@@ -126,6 +126,8 @@ const STRINGS = {
   },
   unitKm: { ar: 'كم', en: 'km' },
   unitM: { ar: 'م', en: 'm' },
+  hbOn: { ar: 'فرامل اليد: مشدودة', en: 'Handbrake: ON' },
+  hbOff: { ar: 'فرامل اليد: محرَّرة', en: 'Handbrake: off' },
   msgReset: { ar: 'أُعيدت السيارة إلى نقطة البداية', en: 'Car returned to the start' },
   msgRotate: {
     ar: 'أدر الهاتف أفقياً لتحكم أسهل',

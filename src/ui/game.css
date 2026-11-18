@@ -813,6 +813,13 @@ a:focus-visible {
   border-color: var(--good);
 }
 
+/* Handbrake: red while it is on, so it is obvious the car is held. */
+.ctl-btn.btn-hb.on {
+  background: #c62828;
+  border-color: #ff8a80;
+  color: #fff;
+}
+
 /* Narrow and tall (a phone held upright): it works, but ask for a turn. */
 @media (orientation: portrait) and (max-width: 640px) {
   .touch .rotate-hint {

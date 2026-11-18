@@ -19,6 +19,7 @@ import type { Action } from './keyboard';
 import { GearLeverModel, gearSlots } from './gearLever';
 import { SteeringWheelModel, WHEEL_LOCK } from './steeringWheel';
 import { onLangChange, t, type StringKey } from '../ui/i18n';
+import { onPress } from '../ui/press';
 
 export interface TouchState {
   analog: AnalogInput;
@@ -105,7 +106,7 @@ export class TouchControls {
       const b = el('button', 'ctl-btn btn-ind', indicators);
       b.type = 'button';
       b.textContent = text;
-      b.addEventListener('click', () => this.onAction({ type: 'indicator', mode }));
+      onPress(b, () => this.onAction({ type: 'indicator', mode }));
       this.toggles[mode] = b;
     };
     indicator('◀', 'left');
@@ -189,16 +190,17 @@ export class TouchControls {
     // Needed for every move-off: between the thumbs. Needed now and then: out of the way, top left.
     const main = el('div', 'buttons buttons-main', this.root);
     const extra = el('div', 'buttons buttons-extra', this.root);
-    const button = (parent: HTMLElement, className: string, key: StringKey, action: () => void) => {
+    const button = (parent: HTMLElement, className: string, key: StringKey | null, action: () => void) => {
       const b = el('button', `ctl-btn ${className}`, parent);
       b.type = 'button';
-      this.label(b, key);
-      b.addEventListener('click', action);
+      if (key) this.label(b, key);
+      onPress(b, action);
       return b;
     };
     const start = button(main, 'btn-start', 'start', () => this.onAction({ type: 'starterTap' }));
     this.hold(start, (on) => (this.state.starter = on));
-    this.toggles.handbrake = button(main, 'btn-hb', 'handbrake', () => this.onAction({ type: 'handbrake' }));
+    // The handbrake button says which way it is, in words (set in update()).
+    this.toggles.handbrake = button(main, 'btn-hb', null, () => this.onAction({ type: 'handbrake' }));
     this.toggles.seatbelt = button(extra, 'btn-belt', 'seatbelt', () => this.onAction({ type: 'seatbelt' }));
     button(extra, 'btn-lights', 'lights', () => this.onAction({ type: 'lights' }));
     const horn = button(extra, 'btn-horn', 'horn', () => undefined);
@@ -266,6 +268,8 @@ export class TouchControls {
     this.knob.classList.toggle('pending', d.lever !== d.engaged);
     for (const [g, label] of this.gearLabels) label.classList.toggle('on', g === d.engaged);
     this.toggles.handbrake!.classList.toggle('on', d.handbrake);
+    const hbText = t(d.handbrake ? 'hbOn' : 'hbOff');
+    if (this.toggles.handbrake!.textContent !== hbText) this.toggles.handbrake!.textContent = hbText;
     this.toggles.seatbelt!.classList.toggle('on', d.seatbelt);
     this.toggles.left!.classList.toggle('on', d.indicator === 'left');
     this.toggles.right!.classList.toggle('on', d.indicator === 'right');
