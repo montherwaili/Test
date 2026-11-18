@@ -182,6 +182,17 @@ export class GameRenderer {
     return this.renderer.domElement;
   }
 
+  /** Draw at a fraction of the preset's resolution (the frame-rate governor's lever). */
+  setResolutionScale(scale: number): void {
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.pixelRatio) * scale);
+    this.resize();
+  }
+
+  /** Pixels drawn per CSS pixel right now. */
+  get pixelRatio(): number {
+    return this.renderer.getPixelRatio();
+  }
+
   resize(): void {
     const canvas = this.renderer.domElement;
     const w = canvas.clientWidth || window.innerWidth;

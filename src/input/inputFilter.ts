@@ -19,10 +19,10 @@ export interface DigitalInput {
 
 /** Direct positions from analog devices (touch pedals, later a wheel); undefined = not in use. */
 export interface AnalogInput {
-  throttle?: number;
-  brake?: number;
-  clutch?: number;
-  steer?: number;
+  throttle?: number | undefined;
+  brake?: number | undefined;
+  clutch?: number | undefined;
+  steer?: number | undefined;
 }
 
 export interface InputFilterOptions {

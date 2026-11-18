@@ -126,6 +126,63 @@ Add `?map=track` to the address for the bare test track from phase 2 (road,
 Add `?q=low`, `?q=medium` or `?q=high` to the address to force a graphics
 quality.
 
+### Gamepad and steering wheel
+
+A gamepad works as soon as it is connected (press any of its buttons first;
+browsers hide controllers until then). Standard layout:
+
+| Gamepad | Does |
+| --- | --- |
+| left stick | steer (softer near the centre and at speed) |
+| right trigger / left trigger | gas / brake (as far as you pull them) |
+| hold left bumper | clutch (rises slowly through the bite point when released) |
+| d-pad up / down | gear up / down |
+| d-pad left / right | indicate left / right |
+| A, B, X, Y | starter, handbrake, horn, camera |
+| right bumper; left / right stick click | centre mirror; left / right mirror (tap to glance, hold to look) |
+| View / Select, Menu / Start | seatbelt, help |
+
+A **steering wheel with pedals** is taught once: Settings (⚙) → “Teach a wheel
+and pedals”, then follow the prompts — turn the wheel fully right and back,
+press each pedal all the way and let it up, then put the H-shifter in each
+gear (a wheel without a clutch pedal or shifter can skip those steps). What
+it learns is saved per device name in the browser. The shifter's gears go
+straight to the gearbox, so a gear chosen without the clutch grinds, as in the
+car. Buttons on the wheel follow the gamepad layout above.
+
+### Tilt steering
+
+On a phone, Settings → “Tilt the phone” steers by turning the phone like a
+wheel (iPhones ask permission first). The way you hold the phone when you
+choose it is “straight ahead”; the button below the choice sets it again.
+How far to tilt for full lock is adjustable (35° by default). Touching the
+on-screen wheel still steers by finger; let go and the tilt takes over again.
+The motion sensor only works on pages served over HTTPS (or from the
+computer itself), so not from a phone on the local network address of
+`npm run dev`.
+
+### Settings
+
+⚙ in the top bar (or Help → Settings): sound on/off and volume, phone
+vibration, touch steering (wheel or tilt), picture quality, a frames-per-second
+readout, and the controller set-up. Saved in the browser.
+
+**Picture quality.** Low (no shadows, 1:1 pixels), medium, high, or auto (the
+default). Auto picks a preset for the device, then watches the frame rate: if
+it stays below 30 fps on a phone (60 on a computer) for a second it draws
+fewer pixels, down to half the resolution, and raises it again after four
+comfortable seconds. A change of preset takes effect on reload.
+
+### Sound and effects
+
+All sounds are made live with Web Audio (no sound files): the engine (pitch
+from the revs, louder and brighter with load, rumble at idle that phone
+speakers can play), intake roar, tyre squeal, road noise, horn, the indicator
+relay, a thump for knocks, a grind for a gear forced without the clutch, and
+other drivers' horns. Sound starts at the first touch or key (browsers
+require it) and pauses with the page. Knocks and speed bumps shake the camera
+and, on phones, vibrate.
+
 ## The debug page (`debug.html`)
 
 Drive the sim core on a straight road with sliders or the keyboard and watch
@@ -333,7 +390,8 @@ that point. The frame stream (what the replay shows) is not affected.
 
 ## Performance
 
-Measured after phases 3 and 4, in the town.
+Measured after phases 3 and 4, in the town; the whole-step and frame figures
+after phase 9, in a road test.
 
 | | |
 | --- | --- |
@@ -342,13 +400,23 @@ Measured after phases 3 and 4, in the town.
 | Traffic, 30 cars + 8 pedestrians, per step | 88 µs (1.1%) |
 | Generating the town and its 76 colliders | 16 ms, once at load |
 | Finding the lane under the car | 9 µs |
+| Whole step in a road test (car, physics, 14 cars, examiner, route, recording) | 173 µs (2.1%) |
+| Same on the phone preset (10 cars) | 209 µs |
+| Main-thread time per frame, desktop high: median / 95th percentile | 3.0 / 6.0 ms |
+| Main-thread time per frame, phone low: median / 95th percentile | 1.8 / 4.7 ms |
 | Draw calls per frame, no traffic / with traffic | 64 / 73 |
 | Triangles per frame, 14 / 30 traffic cars | about 38,000 / 45,000 |
+| Triangles per frame, phone preset | about 20,000 |
 
 Static geometry is merged into a few meshes and traffic is drawn with
 instancing, which is what keeps the draw calls low: more cars add triangles
 but no draw calls. Frame rate on real hardware has not been measured: the
-automated browser has no graphics card.
+automated browser has no graphics card (it renders in software, where the
+GPU work dominates and auto quality drops straight to half resolution). The
+CPU side leaves plenty of room: at 30 fps a phone runs four steps a frame,
+under 1 ms here; even a phone four times slower stays near 4 ms of its 33 ms.
+With “Show frames per second” on, the readout gives the real figure and the
+resolution scale on your device.
 
 ## Build phases
 
@@ -360,5 +428,5 @@ automated browser has no graphics card.
 6. **Full test route mode and result screen** — done
 7. **Replay and analysis graphs** — done
 8. **Learning mode, lessons, adaptive practice** — done
-9. Sound, effects, gamepad/wheel, tilt steering, quality presets, phone performance
+9. **Sound, effects, gamepad/wheel, tilt steering, quality presets, phone performance** — done
 10. Menus, Arabic/English, polish, build, GitHub Pages deployment steps

@@ -33,6 +33,7 @@ export interface HudCallbacks {
   onRightCar: () => void;
   /** Open the list of lessons. */
   onLessons: () => void;
+  onSettings: () => void;
   onCamera: () => void;
   onReset: () => void;
   onNight: () => void;
@@ -77,6 +78,7 @@ export class Hud {
   private readonly switchLang: () => void;
   private readonly onReset: () => void;
   private readonly helpPanel: HTMLElement;
+  private readonly fps: HTMLElement;
   private readonly labelled: [HTMLElement, StringKey][] = [];
   private toastTimer = 0;
   private last = { speed: '', rpm: -1, gear: '', camera: '' as string, limit: '' };
@@ -100,6 +102,15 @@ export class Hud {
     const switchLang = () => setLang(getLang() === 'ar' ? 'en' : 'ar');
     this.button(top, 'language', switchLang).classList.add('btn-lang');
     this.switchLang = switchLang;
+    const gear = el('button', 'hud-btn btn-settings', top);
+    gear.type = 'button';
+    gear.textContent = '⚙';
+    gear.title = t('settings');
+    gear.setAttribute('aria-label', t('settings'));
+    onPress(gear, callbacks.onSettings);
+    this.fps = el('div', 'fps', this.root);
+    this.fps.dir = 'ltr';
+    this.fps.hidden = true;
 
     // --- instrument cluster ------------------------------------------------------
     const cluster = el('div', 'cluster', this.root);
@@ -289,6 +300,12 @@ export class Hud {
     this.helpPanel.hidden = force === undefined ? !this.helpPanel.hidden : !force;
   }
 
+  /** Frame rate readout (null hides it). */
+  showFps(text: string | null): void {
+    this.fps.hidden = text === null;
+    if (text !== null && this.fps.textContent !== text) this.fps.textContent = text;
+  }
+
   get helpOpen(): boolean {
     return !this.helpPanel.hidden;
   }
@@ -337,6 +354,10 @@ export class Hud {
     }
     // Keep the mode buttons above the rest of the footer.
     card.insertBefore(modes, foot);
+    this.button(foot, 'settings', () => {
+      this.toggleHelp(false);
+      callbacks.onSettings();
+    });
     this.button(foot, 'night', callbacks.onNight);
     this.button(foot, 'reset', () => {
       this.toggleHelp(false);

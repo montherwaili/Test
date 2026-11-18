@@ -56,6 +56,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, pa
 
 export class TouchControls {
   readonly state: TouchState = { analog: {}, starter: false, horn: false, look: null };
+  /** Tilt steering is on: letting go of the on-screen wheel hands steering back to the phone's tilt. */
+  tiltSteering = false;
   readonly root: HTMLElement;
   private readonly fills = {} as Record<PedalName, HTMLElement>;
   private readonly wheel = new SteeringWheelModel();
@@ -125,7 +127,10 @@ export class TouchControls {
     this.drag(wheelEl, {
       down: (e) => this.wheel.grab(...offset(e)),
       move: (e) => this.wheel.drag(...offset(e)),
-      up: () => this.wheel.release(),
+      up: () => {
+        this.wheel.release();
+        if (this.tiltSteering) this.wheel.reset();
+      },
     });
 
     // --- right thumb: brake, gas, gear lever ---------------------------------------

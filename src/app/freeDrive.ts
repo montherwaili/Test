@@ -15,14 +15,18 @@ import { loadLessons } from '../learning/lesson';
 import { recordFaults, recordLesson, recordTest } from '../learning/progress';
 import { LessonsMenu } from '../ui/lessonsMenu';
 import { CarAudio } from '../audio/carAudio';
-import { loadSettings, type Settings } from '../ui/settingsStore';
+import { loadSettings, saveSettings, type Settings } from '../ui/settingsStore';
+import { SettingsPanel } from '../ui/settingsPanel';
+import { GamepadControls } from '../input/gamepad';
+import { TiltSteering } from '../input/tiltSteering';
+import { ResolutionGovernor } from '../render/resolutionGovernor';
 import { loadProgress, saveProgress } from '../ui/storage';
 import { LIGHT, Recording } from '../replay/recording';
 import type { ResultData } from '../ui/results';
 import { ResultsScreen } from '../ui/results';
 import type { GameMode } from '../ui/hud';
-import { InputFilter } from '../input/inputFilter';
-import { Keyboard, type Action } from '../input/keyboard';
+import { InputFilter, type AnalogInput } from '../input/inputFilter';
+import { Keyboard, emptyHeld, type Action } from '../input/keyboard';
 import { TouchControls } from '../input/touch';
 import {
   CAMERA_MODES,
@@ -133,9 +137,10 @@ function mapLines(map: BuiltMap, yard: boolean): { x: number; z: number }[][] {
   return lines;
 }
 
-function pickQuality(): RenderQuality {
-  const asked = new URLSearchParams(location.search).get('q');
-  if (asked === 'low' || asked === 'medium' || asked === 'high') return QUALITY_PRESETS[asked];
+function pickQuality(chosen: Settings['quality']): RenderQuality {
+  const q = new URLSearchParams(location.search).get('q');
+  const asked = q === 'low' || q === 'medium' || q === 'high' ? q : chosen;
+  if (asked !== 'auto') return QUALITY_PRESETS[asked];
   const phone = matchMedia('(pointer: coarse)').matches;
   // Phones get the cheap settings but a slightly sharper picture than 1:1.
   if (phone) return { ...QUALITY_PRESETS.low, pixelRatio: 1.5 };
@@ -181,6 +186,11 @@ export interface FreeDrive {
   lesson: LessonSession | null;
   lessonsMenu: LessonsMenu;
   audio: CarAudio;
+  gamepad: GamepadControls;
+  tilt: TiltSteering;
+  settings: Settings;
+  /** Advance the simulation one fixed step (automated performance checks). */
+  step: (dt: number) => void;
   /** The car's physics body (for automated page checks). */
   body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
@@ -259,7 +269,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   let flippedFor = 0;
   let wasOnBump = false;
 
-  const renderer = new GameRenderer(canvas, map, tuning, pickQuality());
+  const settings: Settings = loadSettings();
+  const renderer = new GameRenderer(canvas, map, tuning, pickQuality(settings.quality));
+  // "Auto" quality: fewer pixels when the device cannot keep up (30 fps on a phone, 60 on a computer).
+  const governor =
+    settings.quality === 'auto' && !new URLSearchParams(location.search).get('q')
+      ? new ResolutionGovernor({ targetFps: phone ? 30 : 60, minScale: 0.5, maxScale: 1, step: 0.85 })
+      : null;
   if (traffic) renderer.addTraffic(traffic.vehicles.cars, traffic.pedestrians.list);
 
   const hud = new Hud(app, {
@@ -268,6 +284,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onNight: () => handle({ type: 'night' }),
     onRightCar: () => handle({ type: 'rightCar' }),
     onLessons: () => lessonsMenu.show(),
+    onSettings: () => settingsPanel.show(),
     mode,
     // Each mode starts afresh, as at the real test centre.
     onMode: switchMode,
@@ -371,6 +388,10 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   }
 
   const keyboard = new Keyboard(window, handle);
+  const gamepad = new GamepadControls(handle);
+  // What the filter is fed: keys, touch, gamepad and tilt merged (built each step, no allocation).
+  const digital = emptyHeld();
+  const analog: AnalogInput = {};
   const touch = new TouchControls(app, tuning.clutch, handle);
 
   // Show the full-size touch controls on touch devices, or as soon as a finger lands.
@@ -423,13 +444,39 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     : null;
 
   const progress = loadProgress();
-  const settings: Settings = loadSettings();
   const audio = new CarAudio(window);
   audio.setVolume(settings.volume);
   audio.setEnabled(settings.sound);
   const vibrate = (pattern: number | number[]) => {
     if (settings.vibration) navigator.vibrate?.(pattern);
   };
+
+  // Steering by tilting the phone (iPhones ask permission inside a tap, so a
+  // saved choice is switched back on at the first touch).
+  const tilt = new TiltSteering();
+  tilt.range = settings.tiltRange;
+  if (settings.steering === 'tilt' && TiltSteering.supported) {
+    const resume = () => {
+      void tilt.enable().then((ok) => {
+        if (!ok) hud.say('setTiltRefused', 4);
+      });
+    };
+    window.addEventListener('pointerdown', resume, { once: true });
+  }
+  const settingsPanel = new SettingsPanel(app, settings, {
+    onChange: (s, key) => {
+      saveSettings(s);
+      if (key === 'sound') audio.setEnabled(s.sound);
+      if (key === 'volume') audio.setVolume(s.volume);
+      if (key === 'tiltRange') tilt.range = s.tiltRange;
+      if (key === 'steering' && s.steering === 'wheel') tilt.disable();
+      if (key === 'showFps' && !s.showFps) hud.showFps(null);
+    },
+    enableTilt: () => tilt.enable(),
+    calibrateTilt: () => tilt.calibrate(),
+    gamepad,
+    touch: () => document.body.classList.contains('touch'),
+  });
   const lessonsMenu = new LessonsMenu(app, LESSONS, () => progress, startLesson);
   const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {
@@ -469,7 +516,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   function recordFrame(): void {
     const t = vehicle.telemetry;
     const lamps = ancillaries.lamps;
-    const look = keyboard.held.look ?? touch.state.look;
+    const look = keyboard.held.look ?? touch.state.look ?? gamepad.look;
     recording!.addFrame(vehicle.time, (w) => {
       w.car('x', currPos.x);
       w.car('y', currPos.y);
@@ -559,9 +606,27 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
 
   function simStep(dt: number): void {
     const roadSpeed = Math.abs(vehicle.telemetry.wheelSpeed);
+    touch.tiltSteering = tilt.active && tilt.reading;
     touch.tick(dt, roadSpeed);
-    if (keyboard.held.clutch) touch.releaseClutch();
-    filter.update(dt, keyboard.held, touch.state.analog, roadSpeed, tuning.clutch);
+    if (keyboard.held.clutch || gamepad.clutchButton) touch.releaseClutch();
+    // Touch wins over the gamepad, the gamepad over tilt; keys work alongside all of them.
+    const ta = touch.state.analog;
+    const pa = gamepad.analog;
+    analog.throttle = ta.throttle ?? pa.throttle;
+    analog.brake = ta.brake ?? pa.brake;
+    analog.clutch = ta.clutch ?? pa.clutch;
+    analog.steer = ta.steer ?? pa.steer ?? (tilt.active && tilt.reading ? tilt.steer : undefined);
+    const kh = keyboard.held;
+    digital.throttle = kh.throttle;
+    digital.brake = kh.brake;
+    digital.clutch = kh.clutch || gamepad.clutchButton;
+    digital.left = kh.left;
+    digital.right = kh.right;
+    // A held key takes over from an analog device for as long as it is held.
+    if (kh.throttle) analog.throttle = undefined;
+    if (kh.brake) analog.brake = undefined;
+    if (kh.left || kh.right) analog.steer = undefined;
+    filter.update(dt, digital, analog, roadSpeed, tuning.clutch);
     controls.throttle = filter.throttle;
     controls.brake = filter.brake;
     controls.clutch = filter.clutch;
@@ -569,7 +634,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     const running = vehicle.powertrain.state.running;
     controls.starter =
       keyboard.held.starter || touch.state.starter || (!running && vehicle.time < starterAssistUntil);
-    ancillaries.setHorn(keyboard.held.horn || touch.state.horn);
+    ancillaries.setHorn(keyboard.held.horn || touch.state.horn || gamepad.horn);
 
     if (traffic && trafficBodies) {
       player.x = currPos.x;
@@ -690,7 +755,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       return;
     }
 
-    const paused = hud.helpOpen || results.open || lessonsMenu.open;
+    gamepad.poll(Math.abs(vehicle.telemetry.wheelSpeed), now / 1000);
+    if (settingsPanel.open) settingsPanel.update();
+    if (governor?.frame(elapsed)) renderer.setResolutionScale(governor.scale);
+    if (settings.showFps && stats.frames % 15 === 0) {
+      hud.showFps(`${Math.round(stats.fps)} ${t('fpsLabel')} · ${renderer.pixelRatio.toFixed(2)}×`);
+    }
+    const paused = hud.helpOpen || results.open || lessonsMenu.open || settingsPanel.open;
     if (!paused) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
@@ -714,7 +785,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     view.lights.left = lamps.left;
     view.lights.right = lamps.right;
     view.lights.head = ancillaries.state.headlights !== 'off';
-    const look = keyboard.held.look ?? touch.state.look;
+    const look = keyboard.held.look ?? touch.state.look ?? gamepad.look;
     view.lookYaw = look ? LOOK_YAW[look] : 0;
     for (let i = 0; i < loose.length; i++) {
       const b = map.cones[i]!.body;
@@ -811,5 +882,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu, audio };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu, audio, gamepad, tilt, settings, step: simStep };
 }
