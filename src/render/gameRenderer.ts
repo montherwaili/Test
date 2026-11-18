@@ -27,7 +27,8 @@ import { TrafficMeshes } from './trafficMeshes';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
 
-export type CameraMode = 'chase' | 'driver' | 'top';
+/** 'free' orbits the car under the viewer's control (replays only). */
+export type CameraMode = 'chase' | 'driver' | 'top' | 'free';
 export const CAMERA_MODES: CameraMode[] = ['chase', 'driver', 'top'];
 
 export interface RenderQuality {
@@ -81,6 +82,8 @@ export class GameRenderer {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(55, 1, 0.1, 900);
   mode: CameraMode = 'chase';
+  /** Free camera: angle round the car (rad), height angle (rad) and distance (m). */
+  readonly orbit = { yaw: 0.6, pitch: 0.45, distance: 14 };
 
   private readonly car: CarModel;
   private readonly map: MapMeshes;
@@ -285,6 +288,19 @@ export class GameRenderer {
       cam.position.set(this.carPos.x - sx * 6.6, this.carPos.y + 2.5, this.carPos.z - cz * 6.6);
       cam.up.set(0, 1, 0);
       cam.lookAt(this.carPos.x + sx * 3, this.carPos.y + 0.7, this.carPos.z + cz * 3);
+    } else if (this.mode === 'free') {
+      cam.fov = 55;
+      cam.near = 0.3;
+      const o = this.orbit;
+      const flat = Math.cos(o.pitch) * o.distance;
+      cam.position.set(
+        this.carPos.x + Math.sin(o.yaw) * flat,
+        this.carPos.y + Math.sin(o.pitch) * o.distance,
+        this.carPos.z + Math.cos(o.yaw) * flat,
+      );
+      cam.up.set(0, 1, 0);
+      cam.lookAt(this.carPos.x, this.carPos.y + 0.5, this.carPos.z);
+      this.chaseReady = false;
     } else if (this.mode === 'top') {
       cam.fov = 40;
       cam.near = 2;

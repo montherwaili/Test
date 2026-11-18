@@ -9,6 +9,9 @@ import type { ManoeuvreDef } from '../examiner/yard';
 import { getLang, t } from '../ui/i18n';
 import { ExamSession } from './examining';
 import { ROAD_ROUTE, TestSession } from './testSession';
+import { ReplayPlayer } from './replayPlayer';
+import { LIGHT, Recording } from '../replay/recording';
+import type { ResultData } from '../ui/results';
 import { ResultsScreen } from '../ui/results';
 import type { GameMode } from '../ui/hud';
 import { InputFilter } from '../input/inputFilter';
@@ -42,10 +45,14 @@ const CAMERA_NAMES: Record<(typeof CAMERA_MODES)[number], StringKey> = {
   chase: 'camChase',
   driver: 'camDriver',
   top: 'camTop',
+  free: 'camFree',
 };
 
 /** Where the driver's head turns for each mirror, rad (left-hand drive). */
 const LOOK_YAW = { left: -0.85, centre: 0.42, right: 1.0 };
+
+/** A replay frame is recorded every this many simulation steps (120 Hz / 6 = 20 a second). */
+const FRAME_EVERY = 6;
 
 /** Traffic drivers make decisions on every Nth simulation step (120 Hz / 4 = 30 times a second). */
 const TRAFFIC_THINK_EVERY = 4;
@@ -146,6 +153,8 @@ export interface FreeDrive {
   exam: ExamSession;
   test: TestSession | null;
   results: ResultsScreen;
+  recording: Recording | null;
+  player: ReplayPlayer | null;
   /** The car's physics body (for automated page checks). */
   body: { setRotation(q: Quat, wake: boolean): void; setTranslation(p: Vec3, wake: boolean): void };
 }
@@ -252,6 +261,12 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   }
 
   function handle(a: Action): void {
+    // Watching a replay: Space plays and pauses, V changes the camera; driving keys do nothing.
+    if (replay?.active) {
+      if (a.type === 'handbrake') replay.togglePlay();
+      else if (a.type === 'camera') replay.nextCamera();
+      return;
+    }
     const top = tuning.gearbox.forward.length;
     switch (a.type) {
       case 'gearUp':
@@ -337,13 +352,101 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     },
   );
 
+  // Tests are recorded for the replay: the world 20 times a second, the controls every step.
+  const recording = testing
+    ? new Recording({ traffic: traffic?.vehicles.cars.length ?? 0, pedestrians: traffic?.pedestrians.list.length ?? 0, loose: map.cones.length })
+    : null;
+  let lastResult: ResultData | null = null;
+  const replay = recording
+    ? new ReplayPlayer(
+        app,
+        recording,
+        renderer,
+        [0, 1, 2, 3].map((i) => {
+          const p = vehicle.wheelLocalPosition(i, { x: 0, y: 0, z: 0 });
+          return { x: p.x, z: p.z };
+        }),
+        traffic?.vehicles.cars ?? [],
+        traffic?.pedestrians.list ?? [],
+        () => results.reopen(),
+      )
+    : null;
+
   const results = new ResultsScreen(app, {
     onRetry: () => switchMode(mode),
     onFreeDrive: () => switchMode(inYard ? 'yard' : 'town'),
+    ...(replay && {
+      onReplay: (at?: number) => {
+        results.hide();
+        const markers = (lastResult?.faults ?? []).map((f) => ({ at: f.at, n: f.n, severity: f.severity }));
+        replay.open(markers, at);
+      },
+    }),
   });
   const test = testing
-    ? new TestSession(mode === 'roadTest' ? 'road' : 'yard', exam, map.network, hud, mapLines(map, inYard), (r) => results.show(r))
+    ? new TestSession(mode === 'roadTest' ? 'road' : 'yard', exam, map.network, hud, mapLines(map, inYard), (r) => {
+        lastResult = r;
+        results.show(r);
+      })
     : null;
+
+  const wheelScratch = { x: 0, y: 0, z: 0 };
+  function recordFrame(): void {
+    const t = vehicle.telemetry;
+    const lamps = ancillaries.lamps;
+    const look = keyboard.held.look ?? touch.state.look;
+    recording!.addFrame(vehicle.time, (w) => {
+      w.car('x', currPos.x);
+      w.car('y', currPos.y);
+      w.car('z', currPos.z);
+      w.car('qx', currRot.x);
+      w.car('qy', currRot.y);
+      w.car('qz', currRot.z);
+      w.car('qw', currRot.w);
+      const fields = [
+        ['w0y', 'w0steer', 'w0spin'],
+        ['w1y', 'w1steer', 'w1spin'],
+        ['w2y', 'w2steer', 'w2spin'],
+        ['w3y', 'w3steer', 'w3spin'],
+      ] as const;
+      for (let i = 0; i < 4; i++) {
+        const wh = vehicle.wheels[i]!;
+        w.car(fields[i]![0], vehicle.wheelLocalPosition(i, wheelScratch).y);
+        w.car(fields[i]![1], wh.steerAngle);
+        w.car(fields[i]![2], wh.spinAngle);
+      }
+      w.car('steer', controls.steer);
+      w.car('throttle', controls.throttle);
+      w.car('brake', controls.brake);
+      w.car('clutch', controls.clutch);
+      w.car('gear', vehicle.powertrain.state.gear);
+      w.car('handbrake', controls.handbrake);
+      w.car('rpm', t.rpm);
+      w.car('speed', t.wheelSpeed);
+      w.car(
+        'lights',
+        (controls.brake > 0.02 ? LIGHT.brake : 0) |
+          (vehicle.powertrain.state.gear === GEAR_REVERSE && controls.ignition ? LIGHT.reverse : 0) |
+          (lamps.left ? LIGHT.left : 0) |
+          (lamps.right ? LIGHT.right : 0) |
+          (ancillaries.state.headlights !== 'off' ? LIGHT.head : 0),
+      );
+      w.car('signalTime', traffic ? traffic.time : vehicle.time);
+      w.car('lookYaw', look ? LOOK_YAW[look] : 0);
+      traffic?.vehicles.cars.forEach((c, i) => {
+        const flags = (c.braking || c.speed < 0.1 ? 1 : 0) | (c.indicator === 'left' ? 2 : 0) | (c.indicator === 'right' ? 4 : 0);
+        w.traffic(i, c.x, c.y, c.z, c.headingDeg, c.pitch, flags);
+      });
+      traffic?.pedestrians.list.forEach((p, i) => {
+        w.pedestrian(i, p.x, p.z, p.headingDeg, p.walked, p.state === 'crossing' ? 2 : p.state === 'waiting' ? 1 : 0);
+      });
+      map.cones.forEach((c, i) => {
+        const p = c.body.translation();
+        const q = c.body.rotation();
+        w.loose(i, p.x, p.y, p.z, q.x, q.y, q.z, q.w);
+      });
+    });
+  }
 
   function report(e: VehicleEvent): void {
     exam.noteEvent(e.type);
@@ -402,12 +505,23 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
 
     Object.assign(prevPos, currPos);
     Object.assign(prevRot, currRot);
+    recording?.addInput(vehicle.time, dt, {
+      throttle: controls.throttle,
+      brake: controls.brake,
+      clutch: controls.clutch,
+      steer: controls.steer,
+      handbrake: controls.handbrake,
+      gear: controls.gear,
+      ignition: controls.ignition ? 1 : 0,
+      starter: controls.starter ? 1 : 0,
+    });
     for (const e of vehicle.step(dt, controls)) report(e);
     physics.step();
     ancillaries.step(dt, controls.steer);
     Object.assign(currPos, car.body.translation());
     Object.assign(currRot, car.body.rotation());
     exam.step(dt);
+    if (recording && stats.steps % FRAME_EVERY === 0 && !test?.ended) recordFrame();
     test?.step({
       time: vehicle.time,
       dt,
@@ -448,6 +562,21 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     const elapsed = Math.min((now - last) / 1000, 0.25);
     last = now;
     if (elapsed > 0) stats.fps += (1 / elapsed - stats.fps) * 0.05;
+
+    if (replay?.active) {
+      // The simulation stays paused; the renderer shows the recording.
+      const r = replay.tick(elapsed);
+      if (network) renderer.setSignals((junction, group) => {
+        const plan = network.signals.get(junction);
+        return plan ? signalState(plan, group, r.signalTime) : 'red';
+      });
+      renderer.updateTraffic(replay.cars, replay.people, r.signalTime);
+      renderer.render(r.view, r.loose, elapsed);
+      stats.frames++;
+      requestAnimationFrame(frame);
+      return;
+    }
+
     if (!hud.helpOpen && !results.open) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
@@ -548,5 +677,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay };
 }

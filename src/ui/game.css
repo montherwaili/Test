@@ -1185,3 +1185,131 @@ a:focus-visible {
 .help-modes .hud-btn {
   padding: 9px 10px;
 }
+
+/* --- replay ---------------------------------------------------------------- */
+
+.replaying .hud,
+.replaying .controls {
+  display: none;
+}
+
+.replay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.replay > * {
+  pointer-events: auto;
+}
+
+.replay-orbit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.replay-orbit.active {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.replay-top {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  inset-inline-start: var(--edge-x);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.replay-hint {
+  position: absolute;
+  top: calc(max(8px, env(safe-area-inset-top, 0px)) + 44px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.replay-graphs {
+  position: absolute;
+  inset-inline-end: var(--edge-r);
+  top: max(8px, env(safe-area-inset-top, 0px));
+  width: min(440px, 46vw);
+  height: min(270px, calc(100% - 140px));
+  background: rgba(16, 18, 22, 0.86);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+  pointer-events: none;
+}
+
+.replay-graphs canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.replay-bottom {
+  position: absolute;
+  left: var(--edge-x);
+  right: var(--edge-r);
+  bottom: var(--edge-b);
+  background: rgba(16, 18, 22, 0.86);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px 4px;
+}
+
+.replay-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  direction: ltr;
+}
+
+.replay-row .hud-btn {
+  min-width: 46px;
+  min-height: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.replay-timeline {
+  display: block;
+  width: 100%;
+  height: 38px;
+  touch-action: none;
+  cursor: pointer;
+}
+
+@media (max-height: 430px) {
+  .replay-graphs {
+    height: calc(100% - 130px);
+    width: min(400px, 44vw);
+  }
+  .replay-timeline {
+    height: 30px;
+  }
+}
+
+/* The ▶ next to each fault on the result screen. */
+.results-faults .watch {
+  flex: none;
+  align-self: center;
+  min-width: 40px;
+  min-height: 36px;
+}

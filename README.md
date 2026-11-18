@@ -4,11 +4,12 @@ A 3D browser simulator that prepares learners for the Royal Oman Police
 driving test in a manual car. Static site (no backend), TypeScript + Vite,
 Three.js for rendering, Rapier for physics, Vitest for tests.
 
-**Status: phase 6 of 10 complete.** You can take a full road test through a
+**Status: phase 7 of 10 complete.** You can take a full road test through a
 small Omani-style town among traffic and pedestrians, or the test-yard
 exercises, with an examiner who gives directions, records every fault, and
-gives a pass or fail with the reasons at the end. Free drive and yard practice
-are there too. No replays yet (phase 7).
+gives a pass or fail with the reasons at the end. Every test can be watched
+again, from the start or from just before any fault, with graphs of the
+engine, speed and pedals. Free drive and yard practice are there too.
 
 ## Run it
 
@@ -82,6 +83,15 @@ result screen lists them at the end with a tip for each, the time, and a map
 of where they happened. A collision ends the test at once. The route is in
 `src/data/routes.json` (checkpoint lanes; the rest is planned automatically).
 
+**Replay.** Every test is recorded. On the result screen, “Watch the replay”
+plays it from the start, and the ▶ beside each fault plays it from three
+seconds before that fault. The timeline shows the faults as numbered marks;
+drag it to jump anywhere. Play / pause (or Space), ±5 s, and 0.25× to 4×
+speed. The camera button cycles behind the car, the driver's seat, from
+above, and a free camera you drag to turn and pinch (or scroll) to zoom. The
+graphs show engine speed, road speed and the three pedals for ten seconds
+either side of the moment you are watching, with the faults marked.
+
 The **yard test** ends when all four exercises have been done. In free drive
 and yard practice, faults are shown as they happen.
 
@@ -133,8 +143,9 @@ src/world/roads/  lane-level road network, town generator, signal timing - pure 
 src/traffic/   traffic cars and pedestrians - pure TypeScript, seeded
 src/render/    Three.js scene, car model, cameras, mirrors
 src/input/     keyboard, touch, input smoothing (later: gamepad, wheel, tilt)
-src/ui/        HUD and interface text (later: menus, results, replay)
+src/ui/        HUD, interface text, result screen, replay controls
 src/app/       wires the above together and runs the game loop
+src/replay/    recording a drive and the replay clock - pure TypeScript
 src/data/      tuning, maps, the test yard and the examiner's rules (later: lessons, routes) as JSON
 src/debug/     the phase 1 debug page
 src/examiner/  the examiner: rule checks, yard manoeuvres, scoring - pure TypeScript
@@ -282,6 +293,26 @@ These are sensible defaults, marked `TODO(verify ...)` in the source:
   3 s amber, 2 s all-red; no flashing green);
 - sign designs, wording, numerals and placement.
 
+## Recording and replay
+
+`src/replay/recording.ts` keeps two streams for each test:
+
+- **frames**, 20 a second: the car (position, rotation, wheels, pedals, gear,
+  rpm, speed, lamps), each traffic car, each pedestrian and any loose cones.
+  Replays play these back, so jumping anywhere is instant.
+- **inputs**, every 120 Hz step, at full precision. The simulation is
+  deterministic, so feeding them into a fresh world reproduces the drive bit
+  for bit: `src/world/__tests__/replayDeterminism.test.ts` re-runs a 20-second
+  drive with traffic and pedestrians and checks the car, every traffic car and
+  every pedestrian match exactly.
+
+A 15-minute test with 14 traffic cars takes about 20 MB. Recordings stop
+growing after 30 minutes.
+
+Caveat: “Reset”, “Right the car” and switching the engine off with a key are
+not in the input stream; a re-run of a drive that used them would differ from
+that point. The frame stream (what the replay shows) is not affected.
+
 ## Performance
 
 Measured after phases 3 and 4, in the town.
@@ -309,7 +340,7 @@ automated browser has no graphics card.
 4. **Traffic AI and pedestrians** — done
 5. **Examiner rule engine and test yard** — done
 6. **Full test route mode and result screen** — done
-7. Replay and analysis graphs
+7. **Replay and analysis graphs** — done
 8. Learning mode, lessons, adaptive practice
 9. Sound, effects, gamepad/wheel, tilt steering, quality presets, phone performance
 10. Menus, Arabic/English, polish, build, GitHub Pages deployment steps

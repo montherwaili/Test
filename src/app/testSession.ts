@@ -127,7 +127,7 @@ export class TestSession {
       counts: { minor: r.minor, serious: r.serious, fail: r.fail },
       faults: r.faults.map((f, i) => {
         const rule = ex.rule(f.rule);
-        return { n: i + 1, severity: f.severity, time: f.time - start, x: f.x, z: f.z, title: rule.title, tip: rule.tip };
+        return { n: i + 1, severity: f.severity, time: f.time - start, at: f.time, x: f.x, z: f.z, title: rule.title, tip: rule.tip };
       }),
       manoeuvres: ex.manoeuvres.map((m) => ({ title: m.def.title, ok: m.result ? m.result.ok : null })),
       path: this.path,

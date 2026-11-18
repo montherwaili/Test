@@ -8,6 +8,8 @@ export interface ResultFault {
   severity: Severity;
   /** Seconds from the start of the test. */
   time: number;
+  /** Simulation time of the fault (where the replay jumps to). */
+  at: number;
   x: number;
   z: number;
   title: Text;
@@ -32,6 +34,8 @@ export interface ResultData {
 export interface ResultActions {
   onRetry: () => void;
   onFreeDrive: () => void;
+  /** Watch the replay, from the start or from just before a fault. Absent when there is no recording. */
+  onReplay?: (at?: number) => void;
 }
 
 const REASON_KEYS: Record<VerdictReason, StringKey> = {
@@ -81,6 +85,15 @@ export class ResultsScreen {
     this.data = data;
     this.render();
     this.root.hidden = false;
+  }
+
+  /** Step aside for the replay, and come back after it. */
+  hide(): void {
+    this.root.hidden = true;
+  }
+
+  reopen(): void {
+    if (this.data) this.root.hidden = false;
   }
 
   private render(): void {
@@ -135,6 +148,14 @@ export class ResultsScreen {
         el('strong', '', top, f.title[lang]);
         el('time', '', top, clock(f.time));
         el('p', 'tip', body, f.tip[lang]);
+        const replay = this.actions.onReplay;
+        if (replay) {
+          const watch = el('button', 'hud-btn watch', li, '▶');
+          watch.type = 'button';
+          watch.title = t('replayHere');
+          watch.setAttribute('aria-label', t('replayHere'));
+          watch.addEventListener('click', () => replay(f.at));
+        }
       }
     }
 
@@ -147,7 +168,13 @@ export class ResultsScreen {
     el('p', 'results-note', card, t('resUnverified'));
 
     const buttons = el('div', 'results-buttons', card);
-    const retry = el('button', 'hud-btn primary', buttons, t('resTryAgain'));
+    const replay = this.actions.onReplay;
+    if (replay) {
+      const watch = el('button', 'hud-btn primary', buttons, t('replayWatch'));
+      watch.type = 'button';
+      watch.addEventListener('click', () => replay());
+    }
+    const retry = el('button', 'hud-btn', buttons, t('resTryAgain'));
     retry.type = 'button';
     retry.addEventListener('click', this.actions.onRetry);
     const free = el('button', 'hud-btn', buttons, t('resFreeDrive'));
