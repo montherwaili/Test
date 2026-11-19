@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sounds": "vitest run --config scripts/sounds/vitest.config.ts"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",

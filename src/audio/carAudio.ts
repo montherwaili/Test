@@ -14,6 +14,7 @@
  * Browsers only allow sound after the user has touched the page, so the
  * audio graph is built on the first touch, click or key press.
  */
+import { RecordedEngine } from './recordedEngine';
 import {
   renderBuckle,
   renderCrankLoop,
@@ -73,6 +74,8 @@ export class CarAudio {
   private roadGain: GainNode | null = null;
   private hornGain: GainNode | null = null;
   private shots: Record<string, AudioBuffer> = {};
+  /** The engine from real recordings, once loaded (the synthesized one stands in until then). */
+  private recorded: RecordedEngine | null = null;
 
   private lastLit = false;
   private wasTurning = false;
@@ -98,6 +101,11 @@ export class CarAudio {
 
   get started(): boolean {
     return this.ctx !== null;
+  }
+
+  /** Whether the engine from real recordings is playing (for checks). */
+  get recordedEngine(): boolean {
+    return this.recorded !== null;
   }
 
   /** The engine's firing frequency as being played, Hz (for checks). */
@@ -247,6 +255,11 @@ export class CarAudio {
     };
     setTimeout(next, 30);
     this.lastTime = ctx.currentTime;
+
+    const recorded = new RecordedEngine(ctx, body);
+    void recorded.load().then((ok) => {
+      if (ok) this.recorded = recorded;
+    });
   }
 
   private noiseLayer(type: BiquadFilterType, freq: number, q: number): GainNode {
@@ -282,7 +295,15 @@ export class CarAudio {
     };
     // Until the other layers are ready, the idle loop stands in for all of them.
     const full = !!(e.lowHeavy && e.highLight && e.highHeavy);
-    const level = 0.55 * m.engine;
+    // The recorded engine, when it is ready, takes over from the synthesized one.
+    const rec = this.recorded;
+    const level = rec ? 0 : 0.55 * m.engine;
+    if (rec) {
+      const running = dieselMix(s.rpm, s.load, true, false);
+      rec.update(s.rpm, s.load, s.running, s.cranking, 0.75 * running.engine);
+      m.crank = 0;
+      m.coast = 0;
+    }
     set(e.lowLight, m.lowRate, full ? level * m.low * m.light : level, SMOOTH);
     set(e.lowHeavy, m.lowRate, level * m.low * m.heavy, SMOOTH);
     set(e.highLight, m.highRate, level * m.high * m.light, SMOOTH);
@@ -292,11 +313,12 @@ export class CarAudio {
 
     // The engine coming to rest: one last rock on its mounts.
     const turning = s.running || s.cranking || s.rpm > 150;
-    if (this.wasTurning && !turning) this.play('shudder', 0.5);
+    if (this.wasTurning && !turning && !rec) this.play('shudder', 0.5);
     this.wasTurning = turning;
 
     // Turbo: spools up slowly, drops quickly, and sighs when the pedal comes up at boost.
-    const target = s.running ? turboTarget(s.rpm, s.load) : 0;
+    // (The recorded engine has no turbo whistle of its own; none is added to it.)
+    const target = s.running && !rec ? turboTarget(s.rpm, s.load) : 0;
     const before = this.boost;
     this.boost += (target - this.boost) * Math.min(1, dt * (target > this.boost ? 1.4 : 4));
     if (before > 0.55 && target < 0.1 && this.boost < before - 0.05 && dt > 0) {
@@ -320,6 +342,7 @@ export class CarAudio {
     if (!ctx) return;
     const gains = [...Object.values(this.engine).map((l) => l.gain), this.crank?.gain, this.coast?.gain, this.turboGain, this.tyreGain, this.roadGain, this.hornGain];
     for (const g of gains) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+    this.recorded?.quiet();
   }
 
   private play(name: string, level: number, rate = 1): void {

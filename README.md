@@ -190,22 +190,31 @@ The car is a small **turbodiesel** with a manual gearbox: about 1.4 litres,
 diesel's pull at low revs, so it is forgiving when moving off, and it cranks
 for a moment before it catches. The numbers are in `src/data/tuning.json`.
 
-All sounds are made by the game (no recordings), from a model of how such an
-engine makes noise (`src/audio/dieselSynth.ts`). Each combustion stroke is
-rendered on its own: the exhaust pulse ringing the pipe, the diesel knock
-ringing the block at a few kilohertz (the clatter, clearest at idle), the
-injector tick and the roar of combustion, with small differences from
-cylinder to cylinder and stroke to stroke so it never sounds like a buzzer.
-Four such loops (low and high revs, light and heavy load) are played at the
-engine's speed and blended by revs and load. Also:
+**The engine is real recordings** of a four-cylinder diesel van (FSR Tarpan
+239 D; credits and licence, CC BY 4.0, in `assets/sounds-src/CREDITS.md`):
 
-- starting: the key, the starter motor straining at every compression, the
-  engine catching; switching off: it spins down and rocks once on its mounts
-- the turbo whistling as it spools up under load, and a sigh when you lift
-- the handbrake ratchet and its release, the gear lever clunking into a gear,
-  the seatbelt buckle, the indicator relay's tick-tock, the horn
-- tyre squeal, road and wind noise, knocks (a thud and ringing panels), gears
-  grinding when forced in without the clutch, other drivers' horns
+- the real starter cranking, loops for as long as the key is held, then the
+  real moment the engine catches
+- the real idle (about 720 rpm in the recording)
+- above idle, the real combustion strokes re-assembled at the engine's speed:
+  a recording simply played faster sounds like a toy, because the ring of the
+  block and exhaust goes up with it; laying the strokes down closer together
+  raises the beat and keeps the timbre. Loops are made this way at six speeds
+  from 1100 to 4600 rpm, from the idle (light load) and from the van pulling
+  past (under load), and blended by revs and load
+  (`src/audio/granular.ts`, `src/audio/recordedEngine.ts`)
+- switching off or stalling: the strokes slowing to a stop
+
+`npm run sounds` rebuilds these from the original recordings in
+`assets/sounds-src/` (it needs ffmpeg): it takes out the museum hall's
+background noise, cuts and lines up the strokes and writes
+`public/sounds/engine/`. If the files cannot be loaded, a synthesized diesel
+(`src/audio/dieselSynth.ts`) plays instead.
+
+The smaller sounds are synthesized: the handbrake ratchet, the gear lever,
+the seatbelt buckle, the indicator relay, the ignition key, the horn, tyre
+squeal, road and wind noise, knocks, gears grinding when forced in without
+the clutch, and other drivers' horns.
 
 Sound starts at the first touch or key (browsers require it) and pauses with
 the page. Knocks and speed bumps shake the camera and, on phones, vibrate.

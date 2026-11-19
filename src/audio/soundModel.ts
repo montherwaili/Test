@@ -97,3 +97,40 @@ export function roadNoise(speed: number): number {
 export function impactLoudness(speed: number): number {
   return Math.min(1, Math.max(0.15, Math.abs(speed) / 12));
 }
+
+/** One looped layer of the recorded engine: how fast to play it and how loud. */
+export interface LayerLevel {
+  name: string;
+  rate: number;
+  gain: number;
+}
+
+/**
+ * The recorded engine's mix. Light-load loops run from the real idle up
+ * through loops built at `points` rpm; heavy-load loops at the same points.
+ * The two loops either side of the engine speed play, sped up or slowed to
+ * match it and crossfaded at equal power; load blends light into heavy.
+ * Every layer is returned, the ones not needed at gain 0.
+ */
+export function recordedMix(rpm: number, load: number, idleRpm: number, points: readonly number[]): LayerLevel[] {
+  const r = Math.max(1, rpm);
+  const toHeavy = smoothstep(0.2, 0.8, Math.min(1, Math.max(0, load)));
+  const lightShare = Math.cos((toHeavy * Math.PI) / 2);
+  const heavyShare = Math.sin((toHeavy * Math.PI) / 2);
+  const ladder = (names: string[], refs: number[], share: number): LayerLevel[] => {
+    const out = names.map((name, i) => ({ name, rate: r / refs[i]!, gain: 0 }));
+    if (r <= refs[0]!) out[0]!.gain = share;
+    else if (r >= refs[refs.length - 1]!) out[out.length - 1]!.gain = share;
+    else {
+      const i = refs.findIndex((ref, k) => r >= ref && r < refs[k + 1]!);
+      const t = (r - refs[i]!) / (refs[i + 1]! - refs[i]!);
+      out[i]!.gain = share * Math.cos((t * Math.PI) / 2);
+      out[i + 1]!.gain = share * Math.sin((t * Math.PI) / 2);
+    }
+    return out;
+  };
+  return [
+    ...ladder(['idle', ...points.map((p) => `light-${p}`)], [idleRpm, ...points], lightShare),
+    ...ladder(points.map((p) => `heavy-${p}`), [...points], heavyShare),
+  ];
+}
