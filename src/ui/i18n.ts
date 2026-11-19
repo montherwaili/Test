@@ -239,6 +239,58 @@ const STRINGS = {
   learnNoShifter: { ar: 'لا يوجد ذراع غيار', en: 'No gear lever' },
   learnCancel: { ar: 'إلغاء', en: 'Cancel' },
   fpsLabel: { ar: 'إطار/ث', en: 'fps' },
+  menu: { ar: 'القائمة', en: 'Menu' },
+  menuLead: {
+    ar: 'تعلّم أولاً، تدرّب، ثم ادخل الاختبار.',
+    en: 'Learn first, practise, then take the test.',
+  },
+  menuStartHere: { ar: 'ابدأ من هنا', en: 'Start here' },
+  menuLearn: { ar: 'تعلّم', en: 'Learn' },
+  menuLearnIntro: {
+    ar: 'دروس قصيرة بالترتيب: كل درس يقول لك ماذا تفعل خطوة بخطوة، مع تلميحات.',
+    en: 'Short lessons in order: each tells you what to do, step by step, with hints.',
+  },
+  menuLessonsDone: { ar: 'أنهيت {n} من {total} دروس', en: '{n} of {total} lessons done' },
+  menuNextLesson: { ar: 'الدرس التالي', en: 'Next lesson' },
+  menuAllLessons: { ar: 'كل الدروس', en: 'All lessons' },
+  menuPractise: { ar: 'تدرّب', en: 'Practise' },
+  menuPractiseIntro: {
+    ar: 'قُد على راحتك، بفاحص أو بدونه.',
+    en: 'Drive at your own pace, with or without the examiner.',
+  },
+  practiseTown: { ar: 'تدريب في المدينة مع ملاحظات', en: 'Practise in town, with notes' },
+  menuFreeNote: {
+    ar: 'المدينة كلها لك: لا فاحص، لا أخطاء، لا تقييم.',
+    en: 'The whole town is yours: no examiner, no faults, no score.',
+  },
+  menuTownNote: {
+    ar: 'الفاحص يراقب ويخبرك بكل خطأ فوراً مع نصيحة.',
+    en: 'The examiner watches and tells you each fault at once, with a tip.',
+  },
+  menuYardNote: {
+    ar: 'الوقوف عند الخط، المرتفع، الاصطفاف الخلفي والموازي.',
+    en: 'Stop line, hill start, reverse and parallel parking.',
+  },
+  menuTest: { ar: 'الاختبار', en: 'The test' },
+  menuTestIntro: {
+    ar: 'مثل الاختبار الحقيقي: الساحة أولاً ثم الطريق. الفاحص لا يخبرك بالأخطاء إلا في النهاية.',
+    en: 'As in the real test: the yard first, then the road. The examiner tells you the faults only at the end.',
+  },
+  menuYardTestNote: { ar: 'أربعة تمارين في الساحة.', en: 'Four exercises in the yard.' },
+  menuRoadTestNote: {
+    ar: 'جولة في المدينة والفاحص يوجّهك عند كل تقاطع.',
+    en: 'A drive round town, the examiner directing you at each junction.',
+  },
+  menuBack: { ar: 'رجوع', en: 'Back' },
+  menuClose: { ar: 'متابعة القيادة الحرة', en: 'Carry on free driving' },
+  menuUnofficial: {
+    ar: 'للتدريب فقط: ليس اختباراً رسمياً، وقواعد الفاحص لم تُراجَع بعد مع الجهة المختصة.',
+    en: 'For practice only: not an official test, and the examiner\'s rules have not yet been checked with the authorities.',
+  },
+  msgFreeHint: {
+    ar: 'قيادة حرة: لا فاحص. شغّل المحرك وانطلق. القائمة ☰ فيها الدروس والاختبار.',
+    en: 'Free drive: no examiner. Start the engine and go. The ☰ menu has the lessons and the test.',
+  },
   debugLink: { ar: 'صفحة فحص المحاكاة', en: 'Simulation debug page' },
 } as const;
 

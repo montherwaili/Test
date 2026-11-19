@@ -17,6 +17,7 @@ import { LessonsMenu } from '../ui/lessonsMenu';
 import { CarAudio } from '../audio/carAudio';
 import { loadSettings, saveSettings, type Settings } from '../ui/settingsStore';
 import { SettingsPanel } from '../ui/settingsPanel';
+import { MainMenu } from '../ui/mainMenu';
 import { GamepadControls } from '../input/gamepad';
 import { TiltSteering } from '../input/tiltSteering';
 import { ResolutionGovernor } from '../render/resolutionGovernor';
@@ -76,6 +77,7 @@ const STARTER_ASSIST = 1.5;
 
 /** Address names for each mode (#road-test, #yard, ...). */
 const MODE_HASH: Record<GameMode, string> = {
+  free: 'free',
   town: 'town',
   yard: 'yard',
   roadTest: 'road-test',
@@ -106,7 +108,12 @@ function modeChoice(): GameMode {
   for (const v of [hash, query]) {
     for (const [mode, name] of Object.entries(MODE_HASH) as [GameMode, string][]) if (v === name) return mode;
   }
-  return 'town';
+  return 'free';
+}
+
+/** Nothing asked for in the address: a first visit, so the home screen opens over a free drive. */
+function openedPlain(): boolean {
+  return !location.hash && !new URLSearchParams(location.search).get('map');
 }
 
 /** Start a mode afresh. */
@@ -186,6 +193,7 @@ export interface FreeDrive {
   lesson: LessonSession | null;
   lessonsMenu: LessonsMenu;
   audio: CarAudio;
+  mainMenu: MainMenu;
   gamepad: GamepadControls;
   tilt: TiltSteering;
   settings: Settings;
@@ -203,6 +211,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   // The town by default; #yard (or ?map=yard) is the test yard, ?map=track the bare test track.
   const mode = modeChoice();
   const testing = mode === 'roadTest' || mode === 'yardTest';
+  const free = mode === 'free';
   const lessonDef = mode === 'lesson' ? LESSONS.find((l) => l.id === lessonChoice())! : null;
   const inYard = mode === 'yard' || mode === 'yardTest' || lessonDef?.map === 'yard';
   const map =
@@ -285,6 +294,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onRightCar: () => handle({ type: 'rightCar' }),
     onLessons: () => lessonsMenu.show(),
     onSettings: () => settingsPanel.show(),
+    onMenu: () => mainMenu.show(),
     mode,
     // Each mode starts afresh, as at the real test centre.
     onMode: switchMode,
@@ -414,9 +424,11 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     inYard ? (yardJson.manoeuvres as ManoeuvreDef[]) : [],
     {
       // In a test the examiner keeps the faults to himself until the end, as a real one does.
+      // Free drive: nobody is checking, so faults are not shown at all.
       onFault: (f) =>
-        lessonRun ? lessonRun.onFault(f) : test ? test.onFault(f) : hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()]),
+        free ? undefined : lessonRun ? lessonRun.onFault(f) : test ? test.onFault(f) : hud.fault(f.severity, exam.examiner.rule(f.rule).title[getLang()]),
       onManoeuvre: (def, event, ok) => {
+        if (free) return;
         if (event === 'start') hud.sayText(`${t('msgManoeuvreStart')}: ${def.title[getLang()]}`, 'info', 4);
         else hud.sayText(`${t(ok ? 'msgManoeuvreOk' : 'msgManoeuvreDone')}: ${def.title[getLang()]}`, ok ? 'good' : 'info', 4);
       },
@@ -478,12 +490,21 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     touch: () => document.body.classList.contains('touch'),
   });
   const lessonsMenu = new LessonsMenu(app, LESSONS, () => progress, startLesson);
+  const mainMenu = new MainMenu(app, LESSONS, () => progress, {
+    // Free drive is what runs behind the menu on a first visit: just close it.
+    onMode: (m) => (m === mode && m === 'free' ? mainMenu.hide() : switchMode(m)),
+    onLesson: startLesson,
+    onAllLessons: () => lessonsMenu.show(),
+    onSettings: () => settingsPanel.show(),
+    onClose: () => mainMenu.hide(),
+    closeLabel: mode === 'free' ? 'menuClose' : 'menuBack',
+  });
   const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {
     onRetry: () => (lessonDef ? startLesson(lessonDef.id) : switchMode(mode)),
     ...(nextLesson && { onNextLesson: () => startLesson(nextLesson.id) }),
     ...(lessonDef && { onLessons: () => lessonsMenu.show() }),
-    onFreeDrive: () => switchMode(inYard ? 'yard' : 'town'),
+    onFreeDrive: () => switchMode(inYard ? 'yard' : 'free'),
     ...(replay && {
       onReplay: (at?: number) => {
         results.hide();
@@ -764,7 +785,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     if (settings.showFps && stats.frames % 15 === 0) {
       hud.showFps(`${Math.round(stats.fps)} ${t('fpsLabel')} · ${renderer.pixelRatio.toFixed(2)}×`);
     }
-    const paused = hud.helpOpen || results.open || lessonsMenu.open || settingsPanel.open;
+    const paused = hud.helpOpen || results.open || lessonsMenu.open || settingsPanel.open || mainMenu.open;
     if (!paused) stepper.advance(elapsed, simStep);
 
     const alpha = stepper.alpha;
@@ -883,7 +904,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   // Let the car settle on its springs before the first picture.
   for (let i = 0; i < tuning.sim.stepHz; i++) simStep(stepper.dt);
   // In a test the examiner's own instruction says this.
-  if (!test && !lessonRun) hud.say('msgStartHint', 8);
+  if (!test && !lessonRun) hud.say(free ? 'msgFreeHint' : 'msgStartHint', 8);
+  if (openedPlain()) mainMenu.show();
   requestAnimationFrame(frame);
 
   /** Put the car somewhere, at rest (used by automated page checks). */
@@ -897,5 +919,5 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     renderer.snapCamera();
   };
 
-  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu, audio, gamepad, tilt, settings, step: simStep };
+  return { vehicle, controls, ancillaries, renderer, stats, network, teleport, traffic, exam, body: car.body, test, results, recording, player: replay, lesson: lessonRun, lessonsMenu, mainMenu, audio, gamepad, tilt, settings, step: simStep };
 }

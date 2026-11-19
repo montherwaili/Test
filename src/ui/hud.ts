@@ -23,7 +23,8 @@ export interface HudState {
 }
 
 /** Free drive in the town or yard, the two tests, or the bare test track. */
-export type GameMode = 'town' | 'yard' | 'roadTest' | 'yardTest' | 'track' | 'lesson';
+/** 'free': drive anywhere with no examiner; 'town': practice in town with the examiner's notes. */
+export type GameMode = 'free' | 'town' | 'yard' | 'roadTest' | 'yardTest' | 'track' | 'lesson';
 
 export interface HudCallbacks {
   /** Switch to another mode (each starts afresh). */
@@ -34,6 +35,8 @@ export interface HudCallbacks {
   /** Open the list of lessons. */
   onLessons: () => void;
   onSettings: () => void;
+  /** Open the home screen (learn, practise, test). */
+  onMenu: () => void;
   onCamera: () => void;
   onReset: () => void;
   onNight: () => void;
@@ -89,6 +92,8 @@ export class Hud {
 
     // --- top bar ---------------------------------------------------------------
     const top = el('div', 'topbar', this.root);
+    const menuButton = this.button(top, 'menu', callbacks.onMenu);
+    menuButton.classList.add('btn-menu');
     const helpButton = this.button(top, 'help', () => this.toggleHelp());
     helpButton.classList.add('btn-help');
     this.cameraButton = el('button', 'hud-btn', top);
@@ -344,10 +349,11 @@ export class Hud {
     });
     if (callbacks.mode === 'lesson') lessonsButton.classList.add('primary');
     const modeButtons: [GameMode, StringKey][] = [
-      ['roadTest', 'testRoad'],
-      ['yardTest', 'testYard'],
-      ['town', 'freeDrive'],
+      ['free', 'freeDrive'],
+      ['town', 'practiseTown'],
       ['yard', 'practiseYard'],
+      ['yardTest', 'testYard'],
+      ['roadTest', 'testRoad'],
     ];
     for (const [mode, key] of modeButtons) {
       const b = this.button(modes, key, () => callbacks.onMode(mode));

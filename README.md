@@ -89,8 +89,17 @@ as “Suggested for you” and offers a button for it; older mistakes count for
 less over time, and three stars in a lesson takes its skill down. Stars, skill
 scores and test counts are saved in the browser (`localStorage`).
 
-**Modes** (Help, or the address): road test `#road-test`, yard test
-`#yard-test`, free drive in town `#town` (the default), yard practice `#yard`.
+**Home screen.** The game opens on a home screen (☰ Menu in the top bar
+brings it back) that lays the way out in three steps: **1. Learn** — the
+lessons in order, with a button for the next one not yet done; **2.
+Practise** — free drive, town practice with the examiner's notes, or the
+yard; **3. Test** — the yard test first, then the road test, as at the real
+test. Step 1 is marked "start here" until five lessons are done, then step 3.
+
+**Modes** (home screen, Help, or the address): free drive `#free` (no
+examiner at all: no faults, no messages, no score; what runs behind the home
+screen), town practice with notes `#town`, yard practice `#yard`, yard test
+`#yard-test`, road test `#road-test`, a lesson `#lesson-<id>`.
 
 In the **road test** the examiner tells you where to go (“at the roundabout,
 take the second exit”) a little before each junction, and redirects you if you
