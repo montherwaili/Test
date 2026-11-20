@@ -8,22 +8,23 @@
  *   2. the real starter (looped between two compression strokes while the
  *      game keeps cranking), the real first firings and flare, and the real
  *      switch-off, all at the recording's own levels relative to the idle
- *   3. the real idle, looped, at its own speed
- *   4. its combustion strokes cut out, lined up, and laid down again at each
- *      engine speed in POINTS and at the game's idle (src/audio/granular.ts);
- *      for the engine under load, the same strokes driven harder (louder,
- *      harsher) - the recording has no driving in it
+ *   3. the idle's combustion strokes cut out, lined up, and laid down again
+ *      at the game's idle and at each engine speed in POINTS
+ *      (src/audio/granular.ts); for the engine under load, the same strokes
+ *      with a harder knock and more exhaust body - the recording has no
+ *      driving in it
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { alignGrains, crossfadeLoop, cutGrains, findFirings, firingInterval, renderGranularLoop, type Grain } from '../../src/audio/granular';
+import { alignGrains, cutGrains, findFirings, firingInterval, renderGranularLoop, type Grain } from '../../src/audio/granular';
 
 const SRC = 'assets/sounds-src/';
 const OUT = 'public/sounds/engine/';
 const SR = 32000;
-/** Speeds of the loops above the recorded idle. */
-const POINTS = [1500, 2100, 2800, 3600, 4400];
+/** Speeds of the loops above idle: close enough that no loop is sped up or slowed by much. */
+const POINTS = [1150, 1550, 2050, 2650, 3350, 4100, 4700];
 const GAME_IDLE = (JSON.parse(readFileSync('src/data/tuning.json', 'utf8')) as { engine: { idleRpm: number } }).engine.idleRpm;
 
 function decode(file: string): Float32Array {
@@ -67,18 +68,23 @@ function fades(x: Float32Array, inS: number, outS: number): Float32Array {
   return y;
 }
 
-/** The same strokes as a working engine makes them: harder combustion, more rattle (soft-clipped and brightened). */
+/**
+ * The same strokes as a working engine makes them: the combustion knock at
+ * the start of each stroke harder, and more body from the exhaust (a low
+ * shelf). No distortion: it must stay the same engine, only working.
+ */
 function underLoad(grains: Grain[]): Grain[] {
-  let peak = 0;
-  for (const g of grains) for (const v of g.data) peak = Math.max(peak, Math.abs(v));
-  const drive = 2.4 / peak;
+  const knock = Math.round(0.006 * SR);
+  const a = Math.exp((-2 * Math.PI * 260) / SR);
   return grains.map((g) => {
     const data = new Float32Array(g.data.length);
-    let prev = 0;
+    let low = 0;
     for (let i = 0; i < data.length; i++) {
-      const v = Math.tanh(g.data[i]! * drive);
-      data[i] = v + 0.35 * (v - prev);
-      prev = v;
+      const t = i - g.lead;
+      const hit = t >= 0 && t < knock ? 1 + 0.6 * (1 - t / knock) : 1;
+      const v = g.data[i]! * hit;
+      low = a * low + (1 - a) * v;
+      data[i] = v + 0.9 * low;
     }
     return { data, lead: g.lead };
   });
@@ -86,6 +92,7 @@ function underLoad(grains: Grain[]): Grain[] {
 
 it('builds the engine sound bank', () => {
   mkdirSync(OUT, { recursive: true });
+  for (const f of readdirSync(OUT).filter((n) => n.endsWith('.wav'))) rmSync(OUT + f);
   const rec = decode('BigSoundBank-0967-Kia-Carnival-diesel.flac');
 
   // Settled idle (the cold engine idles fast, at about 1000 rpm).
@@ -95,8 +102,7 @@ it('builds the engine sound bank', () => {
   // Everything cut from the recording keeps its loudness relative to the idle.
   const gain = 0.25 / rms(idleSrc);
   const level = (x: Float32Array) => clip(x.map((v) => v * gain));
-  const points = [realRpm, ...POINTS];
-  writeWav(`light-${realRpm}.wav`, level(crossfadeLoop(idleSrc, SR, 0.1)));
+  const points = POINTS;
 
   // Strokes from all of the idle: a long, varied sequence of them.
   const strokesSrc = seg(rec, 2.5, 47);
@@ -107,26 +113,34 @@ it('builds the engine sound bank', () => {
   loop('idle.wav', light, GAME_IDLE, 1);
   loop('heavy-idle.wav', heavy, GAME_IDLE, 2);
   for (const rpm of points) {
-    if (rpm !== realRpm) loop(`light-${rpm}.wav`, light, rpm, rpm);
+    loop(`light-${rpm}.wav`, light, rpm, rpm);
     loop(`heavy-${rpm}.wav`, heavy, rpm, rpm + 1);
   }
 
   // The starter: silence to 0.14 s, compressions with low points at 0.37,
   // 0.56 and 0.72 s, first firing at 0.78 s.
   const CRANK = [0.14, 0.77];
-  writeWav('crank.wav', level(fades(seg(rec, CRANK[0]!, CRANK[1]!), 0.02, 0.01)));
+  // Made louder than in the recording (taken from outside the car): from the
+  // driver's seat the starter is the loudest thing until the engine fires.
+  writeWav('crank.wav', clip(fades(seg(rec, CRANK[0]!, CRANK[1]!), 0.02, 0.01).map((v) => v * gain * 2)));
   // First firings, the flare to fast idle, and into the idle, faded out under the loops.
   writeWav('catch.wav', level(fades(seg(rec, 0.77, 3.1), 0.005, 0.6)));
   // Switch-off: the real run-down, from the last of the idle.
   writeWav('stop.wav', level(fades(seg(rec, 47.3, 49.4), 0.02, 0.3)));
 
+  // A fingerprint of this build, so browsers fetch the new files instead of old copies.
+  const hash = createHash('sha1');
+  for (const f of readdirSync(OUT).filter((n) => n.endsWith('.wav')).sort()) hash.update(readFileSync(OUT + f));
   const meta = {
+    version: hash.digest('hex').slice(0, 10),
     idleRpm: GAME_IDLE,
     points,
     // The part of crank.wav looped while the starter keeps turning (low point to low point).
     crankLoop: [0.37, 0.72].map((t) => Math.round((t - CRANK[0]!) * 1000) / 1000),
     // When the loops take over from catch.wav (seconds after it starts).
     catchHandover: [1.5, 2.2],
+    // Where in crank.wav the engine fires: the catch follows from there.
+    crankFires: Math.round((0.77 - CRANK[0]!) * 1000) / 1000,
   };
   writeFileSync(OUT + 'meta.json', JSON.stringify(meta, null, 1) + '\n');
 

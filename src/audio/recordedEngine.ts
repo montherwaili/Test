@@ -9,12 +9,53 @@
 import { recordedMix } from './soundModel';
 
 interface Meta {
+  /** Fingerprint of the sound files, so a browser never plays old copies of them. */
+  version: string;
   idleRpm: number;
   points: number[];
   /** Seconds into crank.wav looped while the starter keeps turning. */
   crankLoop: [number, number];
   /** Seconds after catch.wav starts over which the loops fade in under it. */
   catchHandover: [number, number];
+  /** Seconds into crank.wav where the engine fires. */
+  crankFires: number;
+}
+
+const BASE = 'sounds/engine/';
+
+interface Fetched {
+  meta: Meta;
+  files: Map<string, ArrayBuffer>;
+}
+
+let fetched: Promise<Fetched> | null = null;
+
+/**
+ * Start downloading the recordings (no audio context needed): called as the
+ * page loads, so they are usually in hand by the time the engine is started.
+ */
+export function prefetchEngineSounds(): Promise<Fetched> {
+  fetched ??= (async () => {
+    const url = (name: string) => new URL(BASE + name, document.baseURI).href;
+    const res = await fetch(url('meta.json'), { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`meta.json: ${res.status}`);
+    const meta = (await res.json()) as Meta;
+    const names = [...layerNames(meta), 'crank', 'catch', 'stop'];
+    const files = new Map<string, ArrayBuffer>();
+    await Promise.all(
+      names.map(async (name) => {
+        const r = await fetch(url(`${name}.wav?v=${meta.version}`));
+        if (!r.ok) throw new Error(`${name}: ${r.status}`);
+        files.set(name, await r.arrayBuffer());
+      }),
+    );
+    return { meta, files };
+  })();
+  return fetched;
+}
+
+function layerNames(meta: Meta): string[] {
+  return ['idle', ...meta.points.map((p) => `light-${p}`), 'heavy-idle', ...meta.points.map((p) => `heavy-${p}`)];
 }
 
 /**
@@ -26,17 +67,21 @@ const SHOT_LEVEL = 0.34;
 
 type Layer = { source: AudioBufferSourceNode; gain: GainNode };
 
-const BASE = 'sounds/engine/';
-
 export class RecordedEngine {
   private layers = new Map<string, Layer>();
   private crankBuf: AudioBuffer | null = null;
   private crank: Layer | null = null;
+  private crankStarted = 0;
+  /** Load as heard: it eases between light and heavy, so a gear change does not jump between them. */
+  private heardLoad = 0;
+  private lastUpdate = 0;
   private shots: Record<string, AudioBuffer> = {};
   private meta: Meta | null = null;
   /** Everything the running engine makes passes through here (faded in after the catch, cut at switch-off). */
   private bus: GainNode;
   private wasRunning = false;
+  /** Not yet followed the engine: if it is already running when the recordings arrive, it just fades in. */
+  private first = true;
 
   constructor(
     private readonly ctx: AudioContext,
@@ -54,17 +99,13 @@ export class RecordedEngine {
     return this.meta !== null;
   }
 
-  /** Fetch and decode everything; resolves false if anything is missing. */
+  /** Fetch (if not already under way) and decode everything; resolves false if anything is missing. */
   async load(): Promise<boolean> {
     try {
-      const url = (name: string) => new URL(BASE + name, document.baseURI).href;
-      const meta = (await (await fetch(url('meta.json'))).json()) as Meta;
-      const decode = async (name: string) => {
-        const res = await fetch(url(`${name}.wav`));
-        if (!res.ok) throw new Error(`${name}: ${res.status}`);
-        return this.ctx.decodeAudioData(await res.arrayBuffer());
-      };
-      const names = ['idle', ...meta.points.map((p) => `light-${p}`), 'heavy-idle', ...meta.points.map((p) => `heavy-${p}`)];
+      const { meta, files } = await prefetchEngineSounds();
+      // decodeAudioData takes the buffer over: decode copies, so a second car can use them too.
+      const decode = (name: string) => this.ctx.decodeAudioData(files.get(name)!.slice(0));
+      const names = layerNames(meta);
       const buffers = await Promise.all(names.map(decode));
       const [crank, catchBuf, stop] = await Promise.all(['crank', 'catch', 'stop'].map(decode));
       names.forEach((name, i) => this.layers.set(name, this.loop(buffers[i]!, this.bus)));
@@ -89,7 +130,7 @@ export class RecordedEngine {
     return { source, gain };
   }
 
-  private play(name: string, level: number): void {
+  private play(name: string, level: number, at = this.ctx.currentTime): void {
     const buf = this.shots[name];
     if (!buf) return;
     const src = this.ctx.createBufferSource();
@@ -97,7 +138,7 @@ export class RecordedEngine {
     const g = this.ctx.createGain();
     g.gain.value = level;
     src.connect(g).connect(this.out);
-    src.start();
+    src.start(at);
   }
 
   /** The starter from its first turn; if it keeps cranking, it goes on round the compression strokes. */
@@ -114,15 +155,16 @@ export class RecordedEngine {
     source.connect(gain).connect(this.out);
     source.start();
     this.crank = { source, gain };
+    this.crankStarted = this.ctx.currentTime;
   }
 
-  private stopCranking(): void {
+  private stopCranking(at = this.ctx.currentTime): void {
     const c = this.crank;
     if (!c) return;
-    const now = this.ctx.currentTime;
-    c.gain.gain.cancelScheduledValues(now);
-    c.gain.gain.setTargetAtTime(0, now, 0.012);
-    c.source.stop(now + 0.1);
+    c.gain.gain.cancelScheduledValues(this.ctx.currentTime);
+    c.gain.gain.setValueAtTime(SHOT_LEVEL, at);
+    c.gain.gain.setTargetAtTime(0, at, 0.008);
+    c.source.stop(at + 0.1);
     this.crank = null;
   }
 
@@ -134,16 +176,28 @@ export class RecordedEngine {
     const meta = this.meta;
     if (!meta) return;
     const now = this.ctx.currentTime;
+    if (this.first) {
+      this.first = false;
+      this.lastUpdate = now;
+      this.heardLoad = load;
+      if (running) {
+        this.wasRunning = true;
+        this.bus.gain.setTargetAtTime(1, now, 0.15);
+      }
+    }
     if (running && !this.wasRunning) {
       // It fires: the recording of this very moment (first firings, the flare,
-      // settling), with the loops fading in under its tail.
-      this.stopCranking();
-      this.play('catch', SHOT_LEVEL);
+      // settling), with the loops fading in under its tail. The starter is
+      // always heard up to where it fires in the recording (a fraction of a
+      // second at most), so its compression strokes are never cut short.
+      const at = this.crank ? Math.max(now, this.crankStarted + meta.crankFires) : now;
+      this.stopCranking(at);
+      this.play('catch', SHOT_LEVEL, at);
       const [from, to] = meta.catchHandover;
       this.bus.gain.cancelScheduledValues(now);
       this.bus.gain.setValueAtTime(0, now);
-      this.bus.gain.setValueAtTime(0, now + from);
-      this.bus.gain.linearRampToValueAtTime(1, now + to);
+      this.bus.gain.setValueAtTime(0, at + from);
+      this.bus.gain.linearRampToValueAtTime(1, at + to);
     } else if (!running && this.wasRunning) {
       // Switched off or stalled: the strokes slow to a stop.
       this.play('stop', SHOT_LEVEL);
@@ -152,7 +206,10 @@ export class RecordedEngine {
     }
     this.wasRunning = running;
 
-    for (const l of recordedMix(rpm, load, meta.idleRpm, meta.points)) {
+    const dt = Math.min(0.1, Math.max(0, now - this.lastUpdate));
+    this.lastUpdate = now;
+    this.heardLoad += (load - this.heardLoad) * Math.min(1, dt / (load > this.heardLoad ? 0.12 : 0.25));
+    for (const l of recordedMix(rpm, this.heardLoad, meta.idleRpm, meta.points)) {
       const layer = this.layers.get(l.name);
       if (!layer) continue;
       layer.source.playbackRate.setTargetAtTime(Math.max(0.05, l.rate), now, 0.02);
@@ -160,7 +217,7 @@ export class RecordedEngine {
     }
     const turning = cranking && !running;
     if (turning && !this.crank) this.startCranking();
-    else if (!turning && this.crank) this.stopCranking();
+    else if (!turning && !running && this.crank) this.stopCranking();
   }
 
   quiet(): void {

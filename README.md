@@ -195,18 +195,24 @@ Carnival 2.9 CRDi, started from cold, idling and switched off (by Joseph
 Sardin, BigSoundBank, CC0 public domain; see `assets/sounds-src/CREDITS.md`):
 
 - the real starter from its first turn (three compression strokes in about
-  0.6 s), looping round the compression strokes if the key is held longer,
-  then the real first firings and the flare to fast idle
-- the real idle (about 990 rpm in the recording: the engine is cold)
-- at the game's idle and above, the real combustion strokes re-assembled at
-  the engine's speed: a recording simply played faster sounds like a toy,
-  because the ring of the block and exhaust goes up with it; laying the
-  strokes down closer together raises the beat and keeps the timbre. Loops
-  are made this way at the game's idle and from 1500 to 4400 rpm, blended by
-  revs (`src/audio/granular.ts`, `src/audio/recordedEngine.ts`)
-- under load, the same strokes driven harder (louder and harsher): the
-  recording has no driving in it, so this part is processed, not recorded
+  0.6 s, always heard in full, louder than in the recording as it is from
+  the driver's seat), looping round the compression strokes if the key is
+  held longer, then the real first firings and the flare to fast idle
+- the engine's real combustion strokes (from its idle, about 990 rpm in the
+  recording: the engine is cold) re-assembled at the engine's speed: a
+  recording simply played faster sounds like a toy, because the ring of the
+  block and exhaust goes up with it; laying the strokes down closer
+  together raises the beat and keeps the timbre. Loops are made this way at
+  the game's idle and from 1150 to 4700 rpm, blended by revs
+  (`src/audio/granular.ts`, `src/audio/recordedEngine.ts`)
+- under load, the same strokes with a harder knock and more exhaust body:
+  the recording has no driving in it, so this part is processed, not
+  recorded; it eases in and out, so gear changes do not jump between sounds
 - switching off or stalling: the real run-down
+
+The recordings download as the page opens; the synthesized engine is never
+heard while they load. Their file names carry a fingerprint of the build,
+so a browser never plays old copies.
 
 `npm run sounds` rebuilds these from the original recording in
 `assets/sounds-src/` (it needs ffmpeg): it cuts and lines up the strokes and
