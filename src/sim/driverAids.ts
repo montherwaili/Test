@@ -45,10 +45,10 @@ export interface AidTuning {
 }
 
 /** Seconds to push the clutch down for a change, and to let it up again. */
-const DIP_TIME = 0.12;
-const RELEASE_TIME = 0.3;
+const DIP_TIME = 0.07;
+const RELEASE_TIME = 0.18;
 /** Least time between two automatic changes, s. */
-const SHIFT_GAP = 0.9;
+const SHIFT_GAP = 0.7;
 
 type Phase = { kind: 'drive' } | { kind: 'dip'; t: number; target: Gear } | { kind: 'release'; t: number };
 

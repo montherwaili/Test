@@ -75,6 +75,21 @@ describe('keyboard pedals', () => {
   });
 });
 
+describe('keyboard clutch through a gear change', () => {
+  it('comes up slowly when moving off, but quickly when changing gear on the move', () => {
+    const still = new InputFilter();
+    run(still, 0.5, { clutch: true });
+    run(still, 0.6);
+    // Standing still: still in the bite after 0.6 s, so the learner can feel for it.
+    expect(still.clutch).toBeGreaterThan(clutch.biteEnd);
+    const moving = new InputFilter();
+    run(moving, 0.5, { clutch: true }, {}, 12);
+    run(moving, 0.5, {}, {}, 12);
+    // At 43 km/h: fully up within half a second.
+    expect(moving.clutch).toBeLessThanOrEqual(clutch.biteEnd);
+  });
+});
+
 describe('keyboard steering', () => {
   it('reaches full lock at a standstill and returns to centre when released', () => {
     const f = new InputFilter();

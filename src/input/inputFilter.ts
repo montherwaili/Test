@@ -40,6 +40,8 @@ export const defaultInputFilterOptions: InputFilterOptions = {
 const THROTTLE_FALL = 4; // per second
 const BRAKE_RISE = 2.5;
 const BRAKE_FALL = 6;
+/** Seconds through the bite range when changing gear on the move. */
+const QUICK_BITE = 0.25;
 const CLUTCH_PRESS = 8;
 const CLUTCH_FREE = 4;
 /** Extra pedal travel either side of the bite range that is still taken slowly. */
@@ -90,7 +92,11 @@ export class InputFilter {
       const slowTop = clutch.biteStart + BITE_MARGIN;
       const slowBottom = clutch.biteEnd - BITE_MARGIN;
       const inBite = this.clutch <= slowTop && this.clutch > slowBottom;
-      const rate = inBite ? (slowTop - slowBottom) / this.options.clutchBiteTime : CLUTCH_FREE;
+      // Slowly through the bite when moving off; quickly when changing gear on the move
+      // (the car is already rolling, so there is nothing to feel for).
+      const moving = Math.min(1, Math.max(0, (Math.abs(speed) - 1.5) / 2.5));
+      const biteTime = this.options.clutchBiteTime + (QUICK_BITE - this.options.clutchBiteTime) * moving;
+      const rate = inBite ? (slowTop - slowBottom) / biteTime : CLUTCH_FREE;
       let next = this.clutch - rate * dt;
       // Do not skip into the bite range at free-travel speed.
       if (!inBite && this.clutch > slowTop && next < slowTop) next = slowTop;
