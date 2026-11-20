@@ -357,13 +357,33 @@ and traffic. For it the generator also takes wide curves (a bend's radius,
 with a speed for it from about 3 m/s² sideways), a median width per road,
 and roads with more lanes than the roundabouts they meet.
 
+**Gearbox help** (Settings, Gearbox): *manual with clutch* as in the car;
+*manual, automatic clutch* (the default; you change gear with E/Q or 1-5
+and the clutch dips, takes up the drive and lets go before a stall by
+itself); or *automatic* (D/N/R). It sits between the player and the same
+manual car (`src/sim/driverAids.ts`). Lessons always use the manual.
+
+In free drive a **map** in the corner (on a computer) shows the roads round
+the car, the fast ones in amber, and **To the highway** puts the car on the
+desert highway.
+
+**Interface**: IBM Plex Sans Arabic (SIL Open Font License), graphite glass
+and one amber accent; a rev-counter gauge round the speed; warning lamps
+with the symbols of a real dashboard; on touch screens, ribbed rubber pedals
+that tip as they are pressed, a three-spoke wheel, an engraved gear gate and
+push-to-start.
+
 **Looks**: a sky dome (deep blue overhead, the haze of the horizon - the same
 colour as the fog - and the sun's glow; stars at night) and filmic tone
 mapping. Sand, asphalt and building windows are drawn by the shader from
 where each pixel is in the world (`src/render/surfaceDetail.ts`): drifts,
 ripples and scrub in the sand; aggregate and repairs in the asphalt; framed
-windows that reflect the sky, some with blinds, some lit at night. No
-textures to download and no triangles for windows. The map is cut into
+windows that reflect the sky, some with blinds, some lit at night - over
+photographed sand, asphalt, plaster and paving with their relief (Poly
+Haven, CC0; `public/textures/CREDITS.md`, 1.4 MB in all). Fair-weather
+clouds. The car is a smooth saloon (`src/render/carBody.ts`) with
+clear-coat paint and glass reflecting the sky, and the traffic is the same
+shape. The map is cut into
 200 m squares so what is behind the camera is skipped; how far you can see
 depends on the quality setting (650 m on low, up to 1.6 km on high).
 

@@ -213,6 +213,8 @@ const STRINGS = {
   setPicture: { ar: 'الصورة', en: 'Picture' },
   setGearbox: { ar: 'ناقل الحركة', en: 'Gearbox' },
   languageShort: { ar: 'EN', en: 'ع' },
+  goHighway: { ar: 'إلى الطريق السريع', en: 'To the highway' },
+  msgHighway: { ar: 'الطريق الصحراوي: ١٢٠ كم/س. شغّل وانطلق.', en: 'The desert highway: 120 km/h. Start up and go.' },
   menuKicker: { ar: 'سلطنة عُمان · تدريب على القيادة', en: 'Sultanate of Oman · Driver training' },
   hbOnShort: { ar: 'مشدودة', en: 'On' },
   hbOffShort: { ar: 'محرّرة', en: 'Off' },

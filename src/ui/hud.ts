@@ -41,6 +41,8 @@ export interface HudCallbacks {
   onCamera: () => void;
   onReset: () => void;
   onNight: () => void;
+  /** Free drive: go straight to the highway (no button when absent). */
+  onHighway?: (() => void) | undefined;
 }
 
 /** The rev counter runs to 5000: a diesel cuts out at 4500. */
@@ -109,6 +111,10 @@ export class Hud {
     this.cameraButton = iconButton('camera', 'camera', callbacks.onCamera, 'btn-camera');
     this.cameraName = el('span', 'btn-text', this.cameraButton);
     iconButton('reset', 'reset', callbacks.onReset, 'btn-reset');
+    if (callbacks.onHighway) {
+      const hw = iconButton('road', 'goHighway', callbacks.onHighway, 'btn-highway');
+      this.label(el('span', 'btn-text', hw), 'goHighway');
+    }
     this.onReset = callbacks.onReset;
     const switchLang = () => setLang(getLang() === 'ar' ? 'en' : 'ar');
     const lang = el('button', 'hud-btn icon-btn btn-lang', top);

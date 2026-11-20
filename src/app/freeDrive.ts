@@ -51,6 +51,7 @@ import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
 import { buildCity, buildTown } from '../world/town';
+import { Minimap } from '../ui/minimap';
 import { impactMaterial } from '../audio/soundModel';
 import { Traffic, type PlayerState } from '../traffic/traffic';
 import { TrafficBodies } from '../world/trafficBodies';
@@ -73,6 +74,9 @@ const TRAFFIC_THINK_EVERY = 4;
 
 /** A flipped car is put back on its wheels after this long, s. */
 const AUTO_RIGHT_AFTER = 6;
+
+/** Where "to the highway" puts the car in free drive: the desert highway east, just out of the ring road's roundabout. */
+const HIGHWAY_START = { lane: 'hwE:f0', at: 70 };
 
 /** A tap on Start cranks for at most this long, s. */
 const STARTER_ASSIST = 1.5;
@@ -308,6 +312,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onCamera: () => handle({ type: 'camera' }),
     onReset: () => handle({ type: 'reset' }),
     onNight: () => handle({ type: 'night' }),
+    // Free drive: straight onto the desert highway, to drive fast.
+    onHighway: free && network?.lanes.has(HIGHWAY_START.lane) ? () => goToLane(HIGHWAY_START.lane, HIGHWAY_START.at) : undefined,
     onRightCar: () => handle({ type: 'rightCar' }),
     onLessons: () => lessonsMenu.show(),
     onSettings: () => settingsPanel.show(),
@@ -315,7 +321,15 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     mode,
     // Each mode starts afresh, as at the real test centre.
     onMode: switchMode,
-  });
+  });  // The map in the corner, in free drive on a computer (a phone's screen is full of controls).
+  const minimap =
+    free && network && !phone
+      ? new Minimap(
+          app,
+          [...network.lanes.values()].map((l) => ({ points: l.path.points, limit: l.speedLimit, lanes: 1 })),
+        )
+      : null;
+
 
   // Poses either side of "now", for smooth drawing between fixed steps.
   const prevPos: Vec3 = { ...car.body.translation() };
@@ -352,6 +366,16 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     Object.assign(currRot, prevRot);
     renderer.snapCamera();
     hud.say('msgReset', 2);
+  }
+
+  /** Put the car on a lane, facing along it (stopped, in neutral). */
+  function goToLane(id: string, at: number): void {
+    if (!network) return;
+    const lane = network.lane(id);
+    const p = lane.path.pointAt(at);
+    const d = lane.path.directionAt(at);
+    teleport(p.x, p.z, Math.atan2(d.x, -d.z));
+    hud.say('msgHighway', 4);
   }
 
   function handle(a: Action): void {
@@ -867,6 +891,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     }
     if (traffic) renderer.updateTraffic(traffic.vehicles.cars, traffic.pedestrians.list, traffic.time);
     renderer.render(view, loose, elapsed);
+    minimap?.update(view.position.x, view.position.z, vehicle.telemetry.heading, now / 1000);
 
     // The little mechanical sounds of the controls being used.
     const pulled = controls.handbrake > 0;

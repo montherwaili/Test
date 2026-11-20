@@ -317,20 +317,29 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   // --- ground and paving -----------------------------------------------------
   const sand = new MeshStandardMaterial({ color: COLORS.sand, roughness: 1 });
   sandDetail(sand);
-  const ground = new Mesh(new PlaneGeometry(def.groundSize, def.groundSize), sand);
+  // In 100 m squares, for the same reason as the roads below.
+  const cells = Math.max(1, Math.round(def.groundSize / 100));
+  const ground = new Mesh(new PlaneGeometry(def.groundSize, def.groundSize, cells, cells), sand);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   root.add(ground);
 
   // Roads are drawn a hair above the ground; the depth offset stops them
   // flickering against it in the distance.
-  const paving = new Batch();
+  // Long roads are cut into short pieces: a kilometre-long triangle running
+  // past the camera loses depth precision and the sand shows through it.
+  const paving = new ChunkedBatch();
   for (const r of def.roads) {
     const dx = r.to[0] - r.from[0];
     const dz = r.to[1] - r.from[1];
-    const g = new PlaneGeometry(r.width, Math.hypot(dx, dz));
-    g.rotateX(-Math.PI / 2);
-    paving.add(g, COLORS.asphalt, (r.from[0] + r.to[0]) / 2, 0.006, (r.from[1] + r.to[1]) / 2, Math.atan2(dx, dz));
+    const len = Math.hypot(dx, dz);
+    const pieces = Math.max(1, Math.ceil(len / 40));
+    for (let k = 0; k < pieces; k++) {
+      const t = (k + 0.5) / pieces;
+      const g = new PlaneGeometry(r.width, len / pieces);
+      g.rotateX(-Math.PI / 2);
+      paving.add(g, COLORS.asphalt, r.from[0] + dx * t, 0.006, r.from[1] + dz * t, Math.atan2(dx, dz));
+    }
   }
   for (const d of def.discs ?? []) {
     const g = new CircleGeometry(d.radius, 48);
@@ -340,10 +349,12 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   if (!paving.empty) {
     const asphalt = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     asphaltDetail(asphalt);
-    const mesh = new Mesh(paving.build(), asphalt);
-    mesh.receiveShadow = true;
-    mesh.renderOrder = 1;
-    root.add(mesh);
+    for (const geometry of paving.build()) {
+      const mesh = new Mesh(geometry, asphalt);
+      mesh.receiveShadow = true;
+      mesh.renderOrder = 1;
+      root.add(mesh);
+    }
   }
 
   // --- everything solid --------------------------------------------------------
