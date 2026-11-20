@@ -110,28 +110,40 @@ export function impactMaterial(kind: string): ImpactMaterial {
 }
 
 export interface ImpactLayer {
-  /** Which recordings: the car body's thump, bent metal, breaking glass. */
-  layer: 'thump' | 'metal' | 'glass';
+  /** Which recordings: the car body's thump, the deep blow, bent metal, breaking glass. */
+  layer: 'thump' | 'boom' | 'metal' | 'glass';
   level: number;
-  /** Playback speed: higher for small, light things. */
+  /** Playback speed: lower is heavier. */
   rate: number;
+  /** Seconds after the blow (metal crumples on, glass falls after). */
+  delay: number;
 }
 
 /**
- * The recordings a collision is made of. Every knock thumps the body; into
- * something hard, metal bends from about 6 km/h and glass breaks from
- * about 30 km/h; a cone is a light, hollow knock.
+ * The recordings a collision is made of. Every knock thumps the body; from
+ * walking pace it also has weight (the deep blow). Into something hard,
+ * metal crumples from about 6 km/h - twice over in a real crash - and glass
+ * breaks from about 20 km/h, its pieces falling a moment later. A cone is a
+ * light, hollow knock; a kerb a dull one.
  */
 export function impactLayers(material: ImpactMaterial, speed: number): ImpactLayer[] {
   const v = Math.abs(speed);
   const loud = impactLoudness(v);
-  if (material === 'plastic') return [{ layer: 'thump', level: 0.25 + 0.3 * loud, rate: 1.5 }];
-  const out: ImpactLayer[] = [{ layer: 'thump', level: 0.35 + 0.65 * loud, rate: material === 'kerb' ? 0.8 : 1 }];
+  if (material === 'plastic') return [{ layer: 'thump', level: 0.25 + 0.3 * loud, rate: 1.5, delay: 0 }];
+  const out: ImpactLayer[] = [{ layer: 'thump', level: 0.4 + 0.6 * loud, rate: material === 'kerb' ? 0.8 : 0.85, delay: 0 }];
+  const weight = smoothstep(1, 7, v) * (material === 'kerb' ? 0.5 : 1);
+  if (weight > 0) out.push({ layer: 'boom', level: weight, rate: 1, delay: 0 });
   if (material === 'hard') {
-    const metal = smoothstep(1.5, 9, v);
-    if (metal > 0) out.push({ layer: 'metal', level: 0.9 * metal, rate: 0.85 + 0.15 * metal });
-    const glass = smoothstep(8, 16, v);
-    if (glass > 0) out.push({ layer: 'glass', level: 0.7 * glass, rate: 1 });
+    const metal = smoothstep(1.5, 8, v);
+    // Heavier panels sound lower: the harder the hit, the lower the metal.
+    if (metal > 0) out.push({ layer: 'metal', level: metal, rate: 0.8 - 0.2 * metal, delay: 0 });
+    const crumple = smoothstep(6, 13, v);
+    if (crumple > 0) out.push({ layer: 'metal', level: 0.8 * crumple, rate: 0.62, delay: 0.07 });
+    const glass = smoothstep(5, 11, v);
+    if (glass > 0) {
+      out.push({ layer: 'glass', level: 0.8 * glass, rate: 0.9, delay: 0.03 });
+      out.push({ layer: 'glass', level: 0.35 * glass, rate: 1.15, delay: 0.32 });
+    }
   }
   return out;
 }

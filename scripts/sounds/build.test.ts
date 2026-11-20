@@ -183,6 +183,28 @@ function hit(x: Float32Array, start: number, lengthS: number): Float32Array {
   return y.map((v) => (v / peak) * 0.85);
 }
 
+/** Slow a hit to 0.45x speed (lower and longer), keep below ~160 Hz, and saturate it. */
+function boom(x: Float32Array): Float32Array {
+  const rate = 0.45;
+  const n = Math.floor(x.length / rate);
+  const y = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const p = i * rate;
+    const k = Math.floor(p);
+    const f = p - k;
+    y[i] = (x[k] ?? 0) * (1 - f) + (x[k + 1] ?? 0) * f;
+  }
+  // Two passes of a one-pole low-pass at 160 Hz.
+  const a = Math.exp((-2 * Math.PI * 160) / SR);
+  for (let pass = 0; pass < 2; pass++) {
+    let lp = 0;
+    for (let i = 0; i < n; i++) y[i] = lp = a * lp + (1 - a) * y[i]!;
+  }
+  let peak = 0;
+  for (const v of y) peak = Math.max(peak, Math.abs(v));
+  return fades(y.map((v) => Math.tanh((v / peak) * 2.2) * 0.88), 0.002, 0.25);
+}
+
 it('builds the crash sound bank', () => {
   mkdirSync(CRASH_OUT, { recursive: true });
   for (const f of readdirSync(CRASH_OUT).filter((n) => n.endsWith('.wav'))) rmSync(CRASH_OUT + f);
@@ -192,6 +214,9 @@ it('builds the crash sound bank', () => {
   const doors = decode(CRASH_SRC + 'BigSoundBank-0655-car-door-slam-inside.flac');
   const thumps = loudOnsets(doors, 8, 1).slice(0, 5);
   thumps.forEach((t, i) => write(`thump-${i + 1}.wav`, hit(doors, t, 0.55)));
+  // The weight of a crash: the same slams an octave and more down, only their low end kept,
+  // pushed into saturation - the deep blow a real crash has and a door does not.
+  thumps.forEach((t, i) => write(`boom-${i + 1}.wav`, boom(hit(doors, t, 0.5))));
 
   // Bent metal: sheet-steel bars falling on a path.
   const steel = ['1771', '1772', '1773', '1776', '1777'];
@@ -212,7 +237,7 @@ it('builds the crash sound bank', () => {
 
   const hash = createHash('sha1');
   for (const f of readdirSync(CRASH_OUT).filter((n) => n.endsWith('.wav')).sort()) hash.update(readFileSync(CRASH_OUT + f));
-  const meta = { version: hash.digest('hex').slice(0, 10), thump: thumps.length, metal: steel.length, glass: smashes.length };
+  const meta = { version: hash.digest('hex').slice(0, 10), thump: thumps.length, boom: thumps.length, metal: steel.length, glass: smashes.length };
   writeFileSync(CRASH_OUT + 'meta.json', JSON.stringify(meta, null, 1) + '\n');
 
   expect(thumps.length).toBeGreaterThanOrEqual(4);

@@ -24,12 +24,25 @@ function inside(p: P2): boolean {
 }
 
 describe('free-drive city', () => {
-  it('is much bigger than the town: a grid, a ring road and a highway', () => {
-    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(100);
-    expect(net.signals.size).toBeGreaterThanOrEqual(8);
-    const hw = net.lane('hw:f0');
-    expect(hw.path.length).toBeGreaterThan(800);
-    expect(hw.speedLimit).toBe(120);
+  it('is an open world: a wide city grid, a three-lane ring, highways, a village and an industrial estate', () => {
+    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(200);
+    expect(net.signals.size).toBeGreaterThanOrEqual(6);
+    // City streets have two lanes each way; the ring three.
+    expect(net.lane('r2a:f1').speedLimit).toBe(60);
+    expect(net.lane('eN2:f2').speedLimit).toBe(100);
+    for (const id of ['hwE:f0', 'dl2:f0', 'wr:f0']) {
+      expect(net.lane(id).path.length).toBeGreaterThan(800);
+      expect(net.lane(id).speedLimit).toBe(120);
+    }
+  });
+
+  it('takes the highways round wide curves, fast', () => {
+    const curves = lanes.filter((l) => l.owner === 'dN1');
+    expect(curves.length).toBeGreaterThan(0);
+    for (const l of curves) {
+      expect(l.path.length).toBeGreaterThan(400);
+      expect(l.speedLimit).toBeGreaterThanOrEqual(100);
+    }
   });
 
   it('joins every lane, end to start, without gaps or kinks', () => {

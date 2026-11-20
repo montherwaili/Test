@@ -127,14 +127,18 @@ describe('collisions', () => {
     expect(impactMaterial('palm')).toBe('soft');
   });
 
-  it('only thumps at a crawl; bends metal faster; breaks glass in a real crash', () => {
-    expect(layers('hard', 1)).toEqual(['thump']);
-    expect(layers('hard', 5)).toEqual(['thump', 'metal']);
-    expect(layers('hard', 14)).toEqual(['thump', 'metal', 'glass']);
+  it('only thumps at a crawl; has weight and bent metal faster; crumples and breaks glass in a real crash', () => {
+    expect(layers('hard', 0.8)).toEqual(['thump']);
+    expect(layers('hard', 4)).toEqual(['thump', 'boom', 'metal']);
+    expect(layers('hard', 14)).toEqual(['thump', 'boom', 'metal', 'metal', 'glass', 'glass']);
+    // The second crumple and the falling glass come after the blow.
+    const late = impactLayers('hard', 14).filter((l) => l.delay > 0.05).map((l) => l.layer);
+    expect(late).toEqual(['metal', 'glass']);
   });
 
   it('never bends metal or breaks glass on soft things, kerbs or cones', () => {
-    for (const m of ['soft', 'kerb', 'plastic'] as const) expect(layers(m, 20)).toEqual(['thump']);
+    for (const m of ['soft', 'kerb'] as const) expect(layers(m, 20)).toEqual(['thump', 'boom']);
+    expect(layers('plastic', 20)).toEqual(['thump']);
   });
 
   it('gets louder with speed', () => {

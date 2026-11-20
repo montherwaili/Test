@@ -1,6 +1,7 @@
 /**
  * Collisions and tyres from real recordings (see public/sounds/crash/CREDITS.md):
- * a car door slammed, heard from inside, for the body's thump; sheet steel
+ * a car door slammed, heard from inside, for the body's thump (and, slowed
+ * and filtered, for the deep blow of a heavy hit); sheet steel
  * falling, for bent metal; breaking glass; and four tyres squealing, looped.
  * A crash is layered from them by `impactLayers` (soundModel.ts), each
  * layer a different take each time, so no two knocks sound the same.
@@ -10,12 +11,16 @@ import { impactLayers, impactMaterial } from './soundModel';
 
 interface Meta extends BankMeta {
   thump: number;
+  boom: number;
   metal: number;
   glass: number;
 }
 
+type Layer = 'thump' | 'boom' | 'metal' | 'glass';
+
 const names = (m: Meta) => [
   ...Array.from({ length: m.thump }, (_, i) => `thump-${i + 1}`),
+  ...Array.from({ length: m.boom }, (_, i) => `boom-${i + 1}`),
   ...Array.from({ length: m.metal }, (_, i) => `metal-${i + 1}`),
   ...Array.from({ length: m.glass }, (_, i) => `glass-${i + 1}`),
   'squeal',
@@ -27,14 +32,26 @@ export function prefetchCrashSounds(): Promise<Fetched<Meta>> {
 }
 
 export class CrashSounds {
-  private takes: Record<'thump' | 'metal' | 'glass', AudioBuffer[]> = { thump: [], metal: [], glass: [] };
+  private takes: Record<Layer, AudioBuffer[]> = { thump: [], boom: [], metal: [], glass: [] };
+  /** Crashes pass through a compressor, so a big one hits hard without clipping. */
+  private readonly bus: DynamicsCompressorNode;
   private last: Record<string, number> = {};
   private squeal: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
 
   constructor(
     private readonly ctx: AudioContext,
     private readonly out: AudioNode,
-  ) {}
+  ) {
+    this.bus = ctx.createDynamicsCompressor();
+    this.bus.threshold.value = -18;
+    this.bus.knee.value = 6;
+    this.bus.ratio.value = 6;
+    this.bus.attack.value = 0.002;
+    this.bus.release.value = 0.25;
+    const makeUp = ctx.createGain();
+    makeUp.gain.value = 1.8;
+    this.bus.connect(makeUp).connect(out);
+  }
 
   get ready(): boolean {
     return this.squeal !== null;
@@ -44,7 +61,7 @@ export class CrashSounds {
     try {
       const bank = await prefetchCrashSounds();
       const buffers = await decodeBank(this.ctx, bank);
-      for (const layer of ['thump', 'metal', 'glass'] as const) {
+      for (const layer of ['thump', 'boom', 'metal', 'glass'] as const) {
         this.takes[layer] = [...buffers].filter(([n]) => n.startsWith(`${layer}-`)).map(([, b]) => b);
       }
       const source = this.ctx.createBufferSource();
@@ -62,7 +79,7 @@ export class CrashSounds {
   }
 
   /** A different take from last time. */
-  private pick(layer: 'thump' | 'metal' | 'glass'): AudioBuffer | null {
+  private pick(layer: Layer): AudioBuffer | null {
     const list = this.takes[layer];
     if (list.length === 0) return null;
     let i = Math.floor(Math.random() * list.length);
@@ -82,9 +99,8 @@ export class CrashSounds {
       src.playbackRate.value = l.rate * (0.92 + Math.random() * 0.16);
       const g = this.ctx.createGain();
       g.gain.value = l.level;
-      src.connect(g).connect(this.out);
-      // The glass follows the first blow by a moment.
-      src.start(now + (l.layer === 'glass' ? 0.03 : 0));
+      src.connect(g).connect(this.bus);
+      src.start(now + l.delay);
     }
   }
 

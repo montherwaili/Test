@@ -37,6 +37,8 @@ export interface IntersectionDef {
   ringLanes?: number;
   /** Priority junctions: the arm that must stop. */
   stopArm?: ArmDir;
+  /** Bends: radius of the curve at the road's centre, m (a tight town corner if not given). */
+  radius?: number;
 }
 
 export type RoadFeature =
@@ -56,6 +58,8 @@ export interface TownRoadDef {
   /** Distances (`at`) are metres from the centre of `from`. */
   features?: RoadFeature[];
   sidewalks?: boolean;
+  /** Width of the central reservation of a two-way road with 2+ lanes each way, m (the map's default if not given). */
+  median?: number;
 }
 
 export interface BlockDef {
@@ -254,9 +258,10 @@ export function generateTown(def: TownDef): TownLayout {
   const signs: SignDef[] = [];
   const signalHeads: SignalHeadDef[] = [];
 
-  const halfWidthOf = (r: TownRoadDef) => r.lanes * w + (r.lanes >= 2 ? def.medianWidth / 2 : 0) + SHOULDER;
+  const medianOf = (r: TownRoadDef) => (r.lanes >= 2 ? (r.median ?? def.medianWidth) : 0);
+  const halfWidthOf = (r: TownRoadDef) => r.lanes * w + medianOf(r) / 2 + SHOULDER;
   /** Centre of lane `i` (0 = right-hand), measured to the right of the direction of travel. */
-  const laneOffset = (r: TownRoadDef, i: number) => (r.lanes >= 2 ? def.medianWidth / 2 : 0) + (r.lanes - i - 0.5) * w;
+  const laneOffset = (r: TownRoadDef, i: number) => medianOf(r) / 2 + (r.lanes - i - 0.5) * w;
 
   // --- intersections and their arms ------------------------------------------------
   const nodes = new Map<string, Node>();
@@ -292,7 +297,7 @@ export function generateTown(def: TownDef): TownLayout {
     const t = n.def.type;
     for (const arm of n.arms) {
       if (t === 'roundabout') arm.extent = ringSpec(n.def.ringLanes ?? 1).outer + ROUNDABOUT_APPROACH;
-      else if (t === 'bend') arm.extent = BEND_RADIUS;
+      else if (t === 'bend') arm.extent = n.def.radius ?? BEND_RADIUS;
       else if (t === 'end') arm.extent = 4;
       else {
         const across = n.arms.filter((o) => o.dir !== arm.dir && o.dir !== OPPOSITE[arm.dir]);
@@ -420,14 +425,14 @@ export function generateTown(def: TownDef): TownLayout {
     line(hw - 0.25, 'yellow');
     line(-(hw - 0.25), 'yellow');
     if (r.lanes >= 2) {
-      const m = def.medianWidth / 2;
+      const m = medianOf(r) / 2;
       line(m + 0.15, 'yellow');
       line(-(m + 0.15), 'yellow');
       for (let i = 1; i < r.lanes; i++) {
         line(m + i * w, 'white', [3, 6]);
         line(-(m + i * w), 'white', [3, 6]);
       }
-      raised.push(boxAlong(a.centre, d, startAt + 1.5, endAt - 1.5, 0, def.medianWidth - 0.5, KERB_HEIGHT));
+      raised.push(boxAlong(a.centre, d, startAt + 1.5, endAt - 1.5, 0, medianOf(r) - 0.5, KERB_HEIGHT));
     } else {
       line(0, 'white', [3, 6]);
     }
@@ -508,7 +513,7 @@ export function generateTown(def: TownDef): TownLayout {
     const inward = neg(arm.out);
     const right = rightOf(inward);
     const at = add(n.centre, arm.out, arm.extent + 0.5);
-    const near = arm.road.lanes >= 2 ? def.medianWidth / 2 + 0.2 : 0.15;
+    const near = arm.road.lanes >= 2 ? medianOf(arm.road) / 2 + 0.2 : 0.15;
     const p: Paint = { points: [add(at, right, near), add(at, right, arm.halfWidth - 0.3)], width: 0.45, color: 'white' };
     if (dashed) p.dash = [0.6, 0.4];
     paint.push(p);
@@ -533,7 +538,8 @@ export function generateTown(def: TownDef): TownLayout {
       const turnCentre = add(add(c, a.out, e), b.out, e);
       const arc = (radius: number, reverse: boolean): P2[] => {
         const pts: P2[] = [];
-        const steps = 10;
+        // A point every 4 m or so along the curve.
+        const steps = Math.max(10, Math.ceil((radius * Math.PI) / 2 / 4));
         for (let i = 0; i <= steps; i++) {
           const phi = ((reverse ? steps - i : i) / steps) * 90 * DEG;
           pts.push({
@@ -543,25 +549,49 @@ export function generateTown(def: TownDef): TownLayout {
         }
         return pts;
       };
+      // How fast the curve can be taken comfortably (about 3 m/s² sideways), in steps of 10 km/h.
+      const bendSpeed = Math.min(a.road.limit, Math.max(30, 10 * Math.floor((3.6 * Math.sqrt(3 * e)) / 10)));
       // Is the inside of the bend on the right of traffic arriving on arm a?
       const inner = rightOf(neg(a.out));
       const side = inner.x * b.out.x + inner.z * b.out.z;
       for (let i = 0; i < a.road.lanes; i++) {
         const o = laneOffset(a.road, i);
-        const ab = newLane(`${id}:${a.dir}${i}>${b.dir}${i}`, 'junction', arc(e - o * side, false), null, w, Math.min(a.road.limit, 30), id, i, side > 0 ? 'right' : 'left');
+        const ab = newLane(`${id}:${a.dir}${i}>${b.dir}${i}`, 'junction', arc(e - o * side, false), null, w, bendSpeed, id, i, side > 0 ? 'right' : 'left');
         network.connect(a.incoming[i]!, ab.id);
         network.connect(ab.id, b.outgoing[i]!);
-        const ba = newLane(`${id}:${b.dir}${i}>${a.dir}${i}`, 'junction', arc(e + o * side, true), null, w, Math.min(a.road.limit, 30), id, i, side > 0 ? 'left' : 'right');
+        const ba = newLane(`${id}:${b.dir}${i}>${a.dir}${i}`, 'junction', arc(e + o * side, true), null, w, bendSpeed, id, i, side > 0 ? 'left' : 'right');
         network.connect(b.incoming[i]!, ba.id);
         network.connect(ba.id, a.outgoing[i]!);
       }
       const hw = a.halfWidth;
-      // A square of paving that covers both the outside and the inside of the corner.
-      const mid = (e - hw) / 2;
-      surfaces.push({ type: 'rect', from: add(add(c, a.out, -hw), b.out, mid), to: add(add(c, a.out, e), b.out, mid), width: e + hw });
+      if (e <= BEND_RADIUS + 1e-6) {
+        // A tight town corner: a square of paving covers both the outside and the inside of it.
+        const mid = (e - hw) / 2;
+        surfaces.push({ type: 'rect', from: add(add(c, a.out, -hw), b.out, mid), to: add(add(c, a.out, e), b.out, mid), width: e + hw });
+      } else {
+        // A wide curve: paved piece by piece along it, each piece overlapping the next.
+        const centre = arc(e, false);
+        for (let k = 0; k < centre.length - 1; k++) {
+          const p0 = centre[k]!;
+          const p1 = centre[k + 1]!;
+          const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+          const u = { x: (p1.x - p0.x) / len, z: (p1.z - p0.z) / len };
+          const grow = 0.6 + (hw * len) / e;
+          surfaces.push({ type: 'rect', from: add(p0, u, -grow), to: add(p1, u, grow), width: hw * 2 });
+        }
+        if (a.road.lanes >= 2) {
+          const m = medianOf(a.road) / 2;
+          paint.push({ points: arc(e - m - 0.15, false), width: 0.12, color: 'yellow' });
+          paint.push({ points: arc(e + m + 0.15, false), width: 0.12, color: 'yellow' });
+          for (let i = 1; i < a.road.lanes; i++) {
+            paint.push({ points: arc(e - m - i * w, false), width: 0.12, color: 'white', dash: [3, 6] });
+            paint.push({ points: arc(e + m + i * w, false), width: 0.12, color: 'white', dash: [3, 6] });
+          }
+        }
+      }
       paint.push({ points: arc(e + hw - 0.25, false), width: 0.12, color: 'yellow' });
       paint.push({ points: arc(e - hw + 0.25, false), width: 0.12, color: 'yellow' });
-      paint.push({ points: arc(e, false), width: 0.12, color: 'white' });
+      if (a.road.lanes < 2) paint.push({ points: arc(e, false), width: 0.12, color: 'white' });
       continue;
     }
 
@@ -687,6 +717,25 @@ export function generateTown(def: TownDef): TownLayout {
             if (j > 0) exit.yieldTo = [segId(0, arriving), segId(0, k)];
             network.connect(segId(j, arriving), exit.id);
             network.connect(exit.id, arm.outgoing[target]!);
+          }
+          // A road with more lanes than the ring: the inner ring lane also leaves into the lanes beyond.
+          const inner = ring.lanes - 1;
+          for (let t = ring.lanes; t < exits; t++) {
+            const to = startPose(arm.outgoing[t]!);
+            const exit = newLane(
+              `${id}:out:${arm.dir}${t}`,
+              'junction',
+              connectPoses(pointOn(ring.radii[inner]!, rn.angle), tangent(rn.angle), to.p, to.d),
+              null,
+              w,
+              JUNCTION_SPEED,
+              id,
+              t,
+              'right',
+            );
+            if (inner > 0) exit.yieldTo = [segId(0, arriving), segId(0, k)];
+            network.connect(segId(inner, arriving), exit.id);
+            network.connect(exit.id, arm.outgoing[t]!);
           }
         }
       }

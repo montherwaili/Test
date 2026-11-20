@@ -98,10 +98,11 @@ test. Step 1 is marked "start here" until five lessons are done, then step 3.
 
 **Modes** (home screen, Help, or the address): free drive `#free` (no
 examiner at all: no faults, no messages, no score; what runs behind the home
-screen) in the **city**, four times the size of the test town: a grid of
-16 junctions (signals, roundabouts, stop and give-way), a two-lane ring road
-at 80 km/h with roundabouts at its corners, and a 1 km desert highway at
-120 km/h; town practice with notes `#town`, yard practice `#yard`, yard test
+screen) in an **open world** about 5 km across: a city of 16 junctions on
+wide streets (two lanes each way, signals and two-lane roundabouts), a
+three-lane ring expressway at 100 km/h with long sweeping curves, a desert
+highway at 120 km/h out to a village and a great loop back, a long west
+desert road, and an industrial estate; town practice with notes `#town`, yard practice `#yard`, yard test
 `#yard-test`, road test `#road-test`, a lesson `#lesson-<id>`.
 
 In the **road test** the examiner tells you where to go (“at the roundabout,
@@ -226,9 +227,12 @@ diesel (`src/audio/dieselSynth.ts`) plays instead.
 `public/sounds/crash/CREDITS.md`), layered by what was hit and how fast
 (`impactLayers` in `src/audio/soundModel.ts`): every knock thumps the body
 (a car door slammed, recorded inside a car); into something hard - a wall,
-a pole, another car - metal bends from about 6 km/h (sheet steel falling)
-and glass breaks from about 30 km/h; a cone is a light, hollow knock; a
-kerb a dull one. Each layer is a different take each time. Tyre squeal is
+a pole, another car - metal bends from about 6 km/h (sheet steel falling),
+crumpling twice in a real crash, and glass breaks from about 20 km/h, its
+pieces falling a moment later; every hit from walking pace has weight (the
+door slam slowed and filtered to a deep blow). A cone is a light, hollow
+knock; a kerb a dull one. Each layer is a different take each time, and
+they pass through a compressor so a big crash hits hard. Tyre squeal is
 four real tyres squealing, looped.
 
 The smaller sounds are synthesized: the handbrake ratchet, the gear lever,
@@ -347,9 +351,11 @@ grid (roundabout, signal, priority, bend, dead end) and the roads between them
 Traffic signals (`signals.ts`) are a pure function of time, so lamps, traffic
 and the examiner always agree.
 
-The free-drive **city** (`src/data/maps/city.json`) is built by the same
+The free-drive **open world** (`src/data/maps/city.json`) is built by the same
 generator from a bigger description, so it has the same lanes, rules, signs
-and traffic.
+and traffic. For it the generator also takes wide curves (a bend's radius,
+with a speed for it from about 3 m/s² sideways), a median width per road,
+and roads with more lanes than the roundabouts they meet.
 
 **Looks**: a sky dome (deep blue overhead, the haze of the horizon - the same
 colour as the fog - and the sun's glow; stars at night) and filmic tone
@@ -477,7 +483,7 @@ after phase 9, in a road test.
 | Draw calls per frame, no traffic / with traffic | 64 / 73 |
 | Triangles per frame, 14 / 30 traffic cars | about 38,000 / 45,000 |
 | Triangles per frame, phone preset | about 20,000 |
-| City (free drive) at the start, draw calls / triangles: phone low / desktop high | 136 / 54,000; 175 / 73,000 |
+| Open world (free drive) at the start, draw calls / triangles: phone low / desktop high | 142 / 82,000; 201 / 119,000 |
 
 Static geometry is merged into a few meshes and traffic is drawn with
 instancing, which is what keeps the draw calls low: more cars add triangles

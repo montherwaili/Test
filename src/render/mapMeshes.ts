@@ -399,13 +399,20 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
 
   // Distant hills, so there is a horizon to steer by.
   const far = def.groundSize * 0.47;
-  for (let i = 0; i < 46; i++) {
-    const angle = (i / 46) * Math.PI * 2 + rnd() * 0.1;
-    const radius = 28 + rnd() * 50;
-    const height = 18 + rnd() * 60;
+  // Each is a broad, craggy peak with a lower shoulder beside it, so the skyline is a range, not a row of pyramids.
+  const peaks = Math.round(46 * Math.max(1, def.groundSize / 760) ** 0.5);
+  for (let i = 0; i < peaks; i++) {
+    const angle = (i / peaks) * Math.PI * 2 + rnd() * 0.1;
+    const scale = Math.max(1, def.groundSize / 1500);
+    const radius = (40 + rnd() * 60) * scale;
+    const height = (20 + rnd() * 55) * scale;
     const dist = far + rnd() * 30;
-    const shade = new Color(COLORS.rock).offsetHSL(0, 0, (rnd() - 0.5) * 0.08).getHex();
-    solid.add(new ConeGeometry(radius, height, 5 + Math.floor(rnd() * 3)), shade, Math.cos(angle) * dist, height / 2 - 2, Math.sin(angle) * dist, rnd() * Math.PI);
+    const shade = new Color(COLORS.rock).offsetHSL(0, 0, (rnd() - 0.5) * 0.1).getHex();
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    solid.add(new ConeGeometry(radius, height, 9, 2), shade, x, height / 2 - 2, z, rnd() * Math.PI);
+    const side = rnd() < 0.5 ? -1 : 1;
+    solid.add(new ConeGeometry(radius * 0.8, height * 0.55, 8, 1), shade, x - Math.sin(angle) * radius * 0.7 * side, height * 0.275 - 2, z + Math.cos(angle) * radius * 0.7 * side, rnd() * Math.PI);
   }
 
   // --- signs: a pole and a back plate in the solid batch, the faces by texture ----

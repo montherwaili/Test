@@ -259,10 +259,10 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       ? (lessonDef.traffic ?? 0)
       : phone
         ? free
-          ? 14
+          ? 20
           : 10
         : free
-          ? 26
+          ? 40
           : 14;
   const traffic = network
     ? new Traffic(network, {
