@@ -50,7 +50,7 @@ import { buildMap, surfaceHeight, type BuiltMap, type MapDef } from '../world/ma
 import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
-import { buildCity, buildTown } from '../world/town';
+import { buildCity, buildHighway, buildTown } from '../world/town';
 import { Minimap } from '../ui/minimap';
 import { impactMaterial } from '../audio/soundModel';
 import { Traffic, type PlayerState } from '../traffic/traffic';
@@ -75,15 +75,13 @@ const TRAFFIC_THINK_EVERY = 4;
 /** A flipped car is put back on its wheels after this long, s. */
 const AUTO_RIGHT_AFTER = 6;
 
-/** Where "to the highway" puts the car in free drive: the desert highway east, just out of the ring road's roundabout. */
-const HIGHWAY_START = { lane: 'hwE:f0', at: 70 };
-
 /** A tap on Start cranks for at most this long, s. */
 const STARTER_ASSIST = 1.5;
 
 /** Address names for each mode (#road-test, #yard, ...). */
 const MODE_HASH: Record<GameMode, string> = {
   free: 'free',
+  highway: 'highway',
   town: 'town',
   yard: 'yard',
   roadTest: 'road-test',
@@ -217,7 +215,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   // Free drive in the city; the other town modes in the town; #yard (or ?map=yard) the test yard, ?map=track the bare test track.
   const mode = modeChoice();
   const testing = mode === 'roadTest' || mode === 'yardTest';
-  const free = mode === 'free';
+  // Free drive, in the city or on the motorway: no examiner.
+  const free = mode === 'free' || mode === 'highway';
   const lessonDef = mode === 'lesson' ? LESSONS.find((l) => l.id === lessonChoice())! : null;
   const inYard = mode === 'yard' || mode === 'yardTest' || lessonDef?.map === 'yard';
   const map =
@@ -225,9 +224,11 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       ? buildMap(testTrack as MapDef, physics)
       : inYard
         ? buildMap(yardJson as unknown as MapDef, physics)
-        : free
-          ? buildCity(physics)
-          : buildTown(physics);
+        : mode === 'highway'
+          ? buildHighway(physics)
+          : free
+            ? buildCity(physics)
+            : buildTown(physics);
   // The road test starts where its route does.
   if (mode === 'roadTest' && map.network) {
     const lane = map.network.lane(ROAD_ROUTE.start.lane);
@@ -312,8 +313,6 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onCamera: () => handle({ type: 'camera' }),
     onReset: () => handle({ type: 'reset' }),
     onNight: () => handle({ type: 'night' }),
-    // Free drive: straight onto the desert highway, to drive fast.
-    onHighway: free && network?.lanes.has(HIGHWAY_START.lane) ? () => goToLane(HIGHWAY_START.lane, HIGHWAY_START.at) : undefined,
     onRightCar: () => handle({ type: 'rightCar' }),
     onLessons: () => lessonsMenu.show(),
     onSettings: () => settingsPanel.show(),
@@ -366,16 +365,6 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     Object.assign(currRot, prevRot);
     renderer.snapCamera();
     hud.say('msgReset', 2);
-  }
-
-  /** Put the car on a lane, facing along it (stopped, in neutral). */
-  function goToLane(id: string, at: number): void {
-    if (!network) return;
-    const lane = network.lane(id);
-    const p = lane.path.pointAt(at);
-    const d = lane.path.directionAt(at);
-    teleport(p.x, p.z, Math.atan2(d.x, -d.z));
-    hud.say('msgHighway', 4);
   }
 
   function handle(a: Action): void {
@@ -446,6 +435,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const digital = emptyHeld();
   const analog: AnalogInput = {};
   const touch = new TouchControls(app, tuning.clutch, handle);
+  touch.setClutchShown(assist.mode === 'manual');
 
   // Show the full-size touch controls on touch devices, or as soon as a finger lands.
   const enableTouch = () => document.body.classList.add('touch');
@@ -528,6 +518,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       if (key === 'showFps' && !s.showFps) hud.showFps(null);
       if (key === 'gearbox') {
         assist.mode = gearboxMode();
+        touch.setClutchShown(assist.mode === 'manual');
         // Automatic has no numbered gears to hold: any forward gear becomes D.
         if (assist.mode === 'automatic' && selectedGear > 1) selectedGear = 1;
       }
@@ -540,19 +531,19 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const lessonsMenu = new LessonsMenu(app, LESSONS, () => progress, startLesson);
   const mainMenu = new MainMenu(app, LESSONS, () => progress, {
     // Free drive is what runs behind the menu on a first visit: just close it.
-    onMode: (m) => (m === mode && m === 'free' ? mainMenu.hide() : switchMode(m)),
+    onMode: (m) => (m === mode && free ? mainMenu.hide() : switchMode(m)),
     onLesson: startLesson,
     onAllLessons: () => lessonsMenu.show(),
     onSettings: () => settingsPanel.show(),
     onClose: () => mainMenu.hide(),
-    closeLabel: mode === 'free' ? 'menuClose' : 'menuBack',
+    closeLabel: free ? 'menuClose' : 'menuBack',
   });
   const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {
     onRetry: () => (lessonDef ? startLesson(lessonDef.id) : switchMode(mode)),
     ...(nextLesson && { onNextLesson: () => startLesson(nextLesson.id) }),
     ...(lessonDef && { onLessons: () => lessonsMenu.show() }),
-    onFreeDrive: () => switchMode(inYard ? 'yard' : 'free'),
+    onFreeDrive: () => switchMode(inYard ? 'yard' : mode === 'highway' ? 'highway' : 'free'),
     ...(replay && {
       onReplay: (at?: number) => {
         results.hide();

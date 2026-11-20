@@ -1098,3 +1098,100 @@ button {
     display: none;
   }
 }
+
+/* --- clutch: a scale beside the pedal, and its state in words ------------------- */
+.pedal {
+  position: relative;
+}
+
+.clutch-scale {
+  position: absolute;
+  top: 0;
+  inset-inline-end: -11px;
+  width: 7px;
+  height: 86px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.touch .clutch-scale {
+  height: var(--pedal-h);
+  width: 9px;
+  inset-inline-end: -14px;
+}
+
+.clutch-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 4px;
+}
+
+/* Where it bites: the amber of the instruments. */
+.zone-bite {
+  background: rgba(233, 162, 59, 0.45);
+}
+
+/* Down far enough to change gear. */
+.zone-shift {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.clutch-level {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 3px;
+  border-radius: 2px;
+  bottom: calc(var(--press) * 100% - 1px);
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+
+/* The pedal's own bar is not needed beside the scale. */
+.pedal-clutch .pedal-track::after {
+  display: none;
+}
+
+.pedal-clutch.down .pedal-pad {
+  border-color: var(--accent);
+}
+
+.clutch-word {
+  white-space: nowrap;
+}
+
+.pedal-clutch.down .clutch-word {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pedal-clutch.biting .clutch-word {
+  color: var(--ink);
+}
+
+/* Auto clutch or automatic: no clutch pedal; the wheel moves over. */
+.controls.no-clutch .pedals-left {
+  display: none;
+}
+
+.touch .controls.no-clutch .wheel-box {
+  left: var(--edge-x);
+}
+
+.touch .controls.no-clutch .buttons-main {
+  left: calc(var(--edge-x) + var(--wheel) + 24px);
+}
+
+/* --- phones: a smaller cluster, so it does not cover the road -------------------- */
+.touch .cluster {
+  transform: translateX(-50%) scale(0.62);
+  transform-origin: top center;
+}
+
+/* Phones held sideways are short: smaller still. */
+@media (max-height: 430px) {
+  .touch .cluster {
+    transform: translateX(-50%) scale(0.52);
+  }
+}

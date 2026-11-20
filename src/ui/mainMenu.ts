@@ -136,6 +136,7 @@ export class MainMenu {
     // 2. Practise
     const practise = stepBox(2, 'menuPractise', 'menuPractiseIntro');
     this.button(practise, t('freeDrive'), () => this.actions.onMode('free'), false, t('menuFreeNote'));
+    this.button(practise, t('freeHighway'), () => this.actions.onMode('highway'), false, t('menuHighwayNote'));
     this.button(practise, t('practiseTown'), () => this.actions.onMode('town'), false, t('menuTownNote'));
     this.button(practise, t('practiseYard'), () => this.actions.onMode('yard'), false, t('menuYardNote'));
 

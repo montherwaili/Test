@@ -1,6 +1,6 @@
 {
  "id": "world",
- "groundSize": 6200,
+ "groundSize": 4400,
  "laneWidth": 3.65,
  "medianWidth": 3,
  "seed": 20263,
@@ -196,82 +196,6 @@
    "ringLanes": 2
   },
   {
-   "id": "v21",
-   "x": 1900,
-   "z": 120,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "v00",
-   "x": 1900,
-   "z": -100,
-   "type": "bend",
-   "radius": 20
-  },
-  {
-   "id": "v02",
-   "x": 1900,
-   "z": 340,
-   "type": "bend",
-   "radius": 20
-  },
-  {
-   "id": "v10",
-   "x": 2120,
-   "z": -100,
-   "type": "priority",
-   "stopArm": "S"
-  },
-  {
-   "id": "v11",
-   "x": 2120,
-   "z": 120,
-   "type": "roundabout",
-   "ringLanes": 1
-  },
-  {
-   "id": "v12",
-   "x": 2120,
-   "z": 340,
-   "type": "signal"
-  },
-  {
-   "id": "v20",
-   "x": 2340,
-   "z": -100,
-   "type": "bend",
-   "radius": 20
-  },
-  {
-   "id": "v22",
-   "x": 2340,
-   "z": 340,
-   "type": "bend",
-   "radius": 20
-  },
-  {
-   "id": "vE",
-   "x": 2340,
-   "z": 120,
-   "type": "priority",
-   "stopArm": "W"
-  },
-  {
-   "id": "dN1",
-   "x": 120,
-   "z": -2000,
-   "type": "bend",
-   "radius": 320
-  },
-  {
-   "id": "dN2",
-   "x": 2120,
-   "z": -2000,
-   "type": "bend",
-   "radius": 320
-  },
-  {
    "id": "s1",
    "x": -120,
    "z": 1350,
@@ -310,13 +234,6 @@
    "z": 1350,
    "type": "bend",
    "radius": 40
-  },
-  {
-   "id": "wEnd",
-   "x": -2700,
-   "z": -120,
-   "type": "roundabout",
-   "ringLanes": 2
   }
  ],
  "roads": [
@@ -752,177 +669,6 @@
    "median": 4
   },
   {
-   "id": "hwE",
-   "from": "jE2",
-   "to": "v21",
-   "lanes": 2,
-   "limit": 120,
-   "features": [
-    {
-     "type": "hill",
-     "at": 380,
-     "gradePercent": 4,
-     "rampLength": 120,
-     "plateauLength": 80
-    }
-   ],
-   "sidewalks": false,
-   "median": 8
-  },
-  {
-   "id": "vr0a",
-   "from": "v00",
-   "to": "v10",
-   "lanes": 1,
-   "limit": 40,
-   "features": [
-    {
-     "type": "bump",
-     "at": 110
-    }
-   ]
-  },
-  {
-   "id": "vr0b",
-   "from": "v10",
-   "to": "v20",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vr1a",
-   "from": "v21",
-   "to": "v11",
-   "lanes": 1,
-   "limit": 40,
-   "features": [
-    {
-     "type": "crossing",
-     "at": 110
-    }
-   ]
-  },
-  {
-   "id": "vr1b",
-   "from": "v11",
-   "to": "vE",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vr2a",
-   "from": "v02",
-   "to": "v12",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vr2b",
-   "from": "v12",
-   "to": "v22",
-   "lanes": 1,
-   "limit": 40,
-   "features": [
-    {
-     "type": "bump",
-     "at": 110
-    }
-   ]
-  },
-  {
-   "id": "vc0a",
-   "from": "v00",
-   "to": "v21",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vc0b",
-   "from": "v21",
-   "to": "v02",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vc1a",
-   "from": "v10",
-   "to": "v11",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vc1b",
-   "from": "v11",
-   "to": "v12",
-   "lanes": 1,
-   "limit": 40,
-   "features": [
-    {
-     "type": "crossing",
-     "at": 110
-    }
-   ]
-  },
-  {
-   "id": "vc2a",
-   "from": "v20",
-   "to": "vE",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "vc2b",
-   "from": "vE",
-   "to": "v22",
-   "lanes": 1,
-   "limit": 40
-  },
-  {
-   "id": "dl1",
-   "from": "jN2",
-   "to": "dN1",
-   "lanes": 2,
-   "limit": 120,
-   "features": [
-    {
-     "type": "hill",
-     "at": 400,
-     "gradePercent": 5,
-     "rampLength": 100,
-     "plateauLength": 120
-    }
-   ],
-   "sidewalks": false,
-   "median": 8
-  },
-  {
-   "id": "dl2",
-   "from": "dN1",
-   "to": "dN2",
-   "lanes": 2,
-   "limit": 120,
-   "features": [
-    {
-     "type": "hill",
-     "at": 700,
-     "gradePercent": 6,
-     "rampLength": 90,
-     "plateauLength": 60
-    }
-   ],
-   "sidewalks": false,
-   "median": 8
-  },
-  {
-   "id": "dl3",
-   "from": "dN2",
-   "to": "v10",
-   "lanes": 2,
-   "limit": 120,
-   "sidewalks": false,
-   "median": 8
-  },
-  {
    "id": "sl",
    "from": "jS1",
    "to": "s1",
@@ -986,31 +732,6 @@
    "lanes": 2,
    "limit": 60,
    "median": 3
-  },
-  {
-   "id": "wr",
-   "from": "wEnd",
-   "to": "jW1",
-   "lanes": 2,
-   "limit": 120,
-   "features": [
-    {
-     "type": "hill",
-     "at": 500,
-     "gradePercent": 5,
-     "rampLength": 120,
-     "plateauLength": 100
-    },
-    {
-     "type": "hill",
-     "at": 1200,
-     "gradePercent": 7,
-     "rampLength": 80,
-     "plateauLength": 40
-    }
-   ],
-   "sidewalks": false,
-   "median": 8
   }
  ],
  "spawn": {
@@ -1194,34 +915,6 @@
    "density": 0.35
   },
   {
-   "x0": 1925,
-   "z0": -75,
-   "x1": 2095,
-   "z1": 95,
-   "density": 0.5
-  },
-  {
-   "x0": 1925,
-   "z0": 145,
-   "x1": 2095,
-   "z1": 315,
-   "density": 0.5
-  },
-  {
-   "x0": 2145,
-   "z0": -75,
-   "x1": 2315,
-   "z1": 95,
-   "density": 0.5
-  },
-  {
-   "x0": 2145,
-   "z0": 145,
-   "x1": 2315,
-   "z1": 315,
-   "density": 0.5
-  },
-  {
    "x0": -675,
    "z0": 1375,
    "x1": -150,
@@ -1246,11 +939,6 @@
    "x": -240,
    "z": 240,
    "headingDeg": 90
-  },
-  {
-   "x": 2230,
-   "z": 230,
-   "headingDeg": 180
   }
  ]
 }

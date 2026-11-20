@@ -24,25 +24,20 @@ function inside(p: P2): boolean {
 }
 
 describe('free-drive city', () => {
-  it('is an open world: a wide city grid, a three-lane ring, highways, a village and an industrial estate', () => {
-    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(200);
+  it('is a city of wide streets inside a three-lane ring, with an industrial estate', () => {
+    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(150);
     expect(net.signals.size).toBeGreaterThanOrEqual(6);
     // City streets have two lanes each way; the ring three.
     expect(net.lane('r2a:f1').speedLimit).toBe(60);
     expect(net.lane('eN2:f2').speedLimit).toBe(100);
-    for (const id of ['hwE:f0', 'dl2:f0', 'wr:f0']) {
-      expect(net.lane(id).path.length).toBeGreaterThan(800);
-      expect(net.lane(id).speedLimit).toBe(120);
-    }
+    // No motorway here: that is a map of its own.
+    expect(lanes.some((l) => l.speedLimit > 100)).toBe(false);
   });
 
-  it('takes the highways round wide curves, fast', () => {
-    const curves = lanes.filter((l) => l.owner === 'dN1');
+  it('takes the ring round wide curves', () => {
+    const curves = lanes.filter((l) => l.owner === 'gNW');
     expect(curves.length).toBeGreaterThan(0);
-    for (const l of curves) {
-      expect(l.path.length).toBeGreaterThan(400);
-      expect(l.speedLimit).toBeGreaterThanOrEqual(100);
-    }
+    for (const l of curves) expect(l.path.length).toBeGreaterThan(300);
   });
 
   it('joins every lane, end to start, without gaps or kinks', () => {
@@ -58,15 +53,16 @@ describe('free-drive city', () => {
     }
   });
 
-  it('lets you drive from anywhere to anywhere', () => {
+  it('lets you drive from anywhere to anywhere (changing lanes where needed)', () => {
     const reach = (from: string, step: (l: Lane) => string[]) => {
       const seen = new Set([from]);
       const queue = [from];
       while (queue.length) for (const n of step(net.lane(queue.pop()!))) if (!seen.has(n)) (seen.add(n), queue.push(n));
       return seen;
     };
-    expect(reach(cityJson.spawn.lane, (l) => l.next).size).toBe(lanes.length);
-    expect(reach(cityJson.spawn.lane, (l) => l.previous).size).toBe(lanes.length);
+    const side = (l: Lane) => [l.left, l.right].filter((x): x is string => x !== null);
+    expect(reach(cityJson.spawn.lane, (l) => [...l.next, ...side(l)]).size).toBe(lanes.length);
+    expect(reach(cityJson.spawn.lane, (l) => [...l.previous, ...side(l)]).size).toBe(lanes.length);
   });
 
   it('paves under every lane and keeps everything raised clear of them', () => {

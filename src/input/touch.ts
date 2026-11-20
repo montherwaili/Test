@@ -98,8 +98,11 @@ export class TouchControls {
   private readonly toggles: Partial<Record<'handbrake' | 'seatbelt' | 'left' | 'right' | 'hazard', HTMLButtonElement>> = {};
   private readonly labelled: [HTMLElement, StringKey][] = [];
   private readonly hbWord: HTMLElement;
+  private clutchWord: HTMLElement | null = null;
+  private lastClutchKey: StringKey | null = null;
 
-  constructor(parent: HTMLElement, clutch: ClutchTuning, private readonly onAction: (a: Action) => void) {
+  constructor(parent: HTMLElement, private readonly clutchTuning: ClutchTuning, private readonly onAction: (a: Action) => void) {
+    const clutch = clutchTuning;
     // Physical layout (steering left, pedals right, clutch-brake-gas) does not mirror in Arabic.
     this.root = el('div', 'controls', parent);
     this.root.dir = 'ltr';
@@ -112,18 +115,25 @@ export class TouchControls {
       el('div', 'pedal-arm', track);
       el('div', 'pedal-pad', track);
       if (name === 'clutch') {
-        // Where the clutch bites, so the learner can see what they are feeling for.
-        const bite = el('div', 'pedal-bite', track);
+        // A scale beside the pedal: where it bites, and where it is down far enough to change gear.
+        const scale = el('div', 'clutch-scale', p);
+        const bite = el('div', 'clutch-zone zone-bite', scale);
         bite.style.bottom = `${clutch.biteEnd * 100}%`;
         bite.style.height = `${(clutch.biteStart - clutch.biteEnd) * 100}%`;
+        const shift = el('div', 'clutch-zone zone-shift', scale);
+        shift.style.bottom = `${clutch.shiftThreshold * 100}%`;
+        shift.style.top = '0';
+        el('div', 'clutch-level', scale);
       }
       this.fills[name] = p;
-      this.label(el('span', 'ctl-label', p), key);
+      if (name === 'clutch') this.clutchWord = el('span', 'ctl-label clutch-word', p);
+      else this.label(el('span', 'ctl-label', p), key);
       const set = (e: PointerEvent) => {
         const r = track.getBoundingClientRect();
         // A little overshoot at each end so "all the way" is easy to reach.
         const v = 1 - (e.clientY - r.top) / r.height;
-        this.state.analog[name] = Math.max(0, Math.min(1, (v - 0.04) / 0.92));
+        // The top fifth of the pedal is "all the way down", so it is easy to reach.
+        this.state.analog[name] = Math.max(0, Math.min(1, (v - 0.04) / 0.78));
       };
       this.drag(p, {
         down: set,
@@ -278,6 +288,12 @@ export class TouchControls {
     else delete this.state.analog.steer;
   }
 
+  /** Show the clutch pedal only when the player works the clutch (manual gearbox). */
+  setClutchShown(shown: boolean): void {
+    this.root.classList.toggle('no-clutch', !shown);
+    if (!shown) delete this.state.analog.clutch;
+  }
+
   /** Let go of the clutch pedal's hold (the keyboard has taken over). */
   releaseClutch(): void {
     delete this.state.analog.clutch;
@@ -296,6 +312,15 @@ export class TouchControls {
     this.fills.throttle.style.setProperty('--press', d.throttle.toFixed(3));
     this.fills.brake.style.setProperty('--press', d.brake.toFixed(3));
     this.fills.clutch.style.setProperty('--press', d.clutch.toFixed(3));
+    // Say where the clutch is, in words: the scale alone was not clear enough.
+    const c = this.clutchTuning;
+    const key: StringKey = d.clutch >= c.shiftThreshold ? 'clutchDown' : d.clutch > c.biteStart ? 'clutchAlmost' : d.clutch > c.biteEnd ? 'clutchBite' : 'clutchUp';
+    if (key !== this.lastClutchKey && this.clutchWord) {
+      this.lastClutchKey = key;
+      this.clutchWord.textContent = t(key);
+    }
+    this.fills.clutch.classList.toggle('down', d.clutch >= c.shiftThreshold);
+    this.fills.clutch.classList.toggle('biting', d.clutch > c.biteEnd && d.clutch <= c.biteStart);
     this.wheelFace.style.transform = `rotate(${d.steer * WHEEL_LOCK}rad)`;
     this.lever.setGear(d.lever);
     this.knob.style.left = `${50 + this.lever.x * 30}%`;
@@ -324,6 +349,7 @@ export class TouchControls {
 
   private relabel(): void {
     for (const [node, key] of this.labelled) node.textContent = t(key);
+    this.lastClutchKey = null;
   }
 
   private drag(

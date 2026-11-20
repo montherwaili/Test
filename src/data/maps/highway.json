@@ -1,0 +1,369 @@
+{
+ "id": "highway",
+ "groundSize": 6600,
+ "laneWidth": 3.65,
+ "medianWidth": 3,
+ "seed": 20264,
+ "intersections": [
+  {
+   "id": "cNW",
+   "x": -2300,
+   "z": -1150,
+   "type": "bend",
+   "radius": 520
+  },
+  {
+   "id": "cNE",
+   "x": 2300,
+   "z": -1150,
+   "type": "bend",
+   "radius": 520
+  },
+  {
+   "id": "cSE",
+   "x": 2300,
+   "z": 1150,
+   "type": "bend",
+   "radius": 520
+  },
+  {
+   "id": "cSW",
+   "x": -2300,
+   "z": 1150,
+   "type": "bend",
+   "radius": 520
+  },
+  {
+   "id": "jN",
+   "x": 0,
+   "z": -1150,
+   "type": "roundabout",
+   "ringLanes": 2
+  },
+  {
+   "id": "jS",
+   "x": 0,
+   "z": 1150,
+   "type": "roundabout",
+   "ringLanes": 2
+  },
+  {
+   "id": "jE",
+   "x": 2300,
+   "z": 0,
+   "type": "roundabout",
+   "ringLanes": 2
+  },
+  {
+   "id": "jW",
+   "x": -2300,
+   "z": 0,
+   "type": "roundabout",
+   "ringLanes": 2
+  },
+  {
+   "id": "sv",
+   "x": 0,
+   "z": -1570,
+   "type": "roundabout",
+   "ringLanes": 1
+  },
+  {
+   "id": "vg",
+   "x": 0,
+   "z": 1570,
+   "type": "signal"
+  },
+  {
+   "id": "v0a",
+   "x": -300,
+   "z": 1570,
+   "type": "bend",
+   "radius": 20
+  },
+  {
+   "id": "v2a",
+   "x": 300,
+   "z": 1570,
+   "type": "bend",
+   "radius": 20
+  },
+  {
+   "id": "v0b",
+   "x": -300,
+   "z": 1830,
+   "type": "bend",
+   "radius": 20
+  },
+  {
+   "id": "v1b",
+   "x": 0,
+   "z": 1830,
+   "type": "priority",
+   "stopArm": "N"
+  },
+  {
+   "id": "v2b",
+   "x": 300,
+   "z": 1830,
+   "type": "bend",
+   "radius": 20
+  },
+  {
+   "id": "eEnd",
+   "x": 2950,
+   "z": 0,
+   "type": "roundabout",
+   "ringLanes": 1
+  },
+  {
+   "id": "wEnd",
+   "x": -2950,
+   "z": 0,
+   "type": "roundabout",
+   "ringLanes": 1
+  }
+ ],
+ "roads": [
+  {
+   "id": "mN1",
+   "from": "cNW",
+   "to": "jN",
+   "lanes": 3,
+   "limit": 120,
+   "features": [
+    {
+     "type": "hill",
+     "at": 700,
+     "gradePercent": 4,
+     "rampLength": 150,
+     "plateauLength": 120
+    }
+   ],
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mN2",
+   "from": "jN",
+   "to": "cNE",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mS1",
+   "from": "cSW",
+   "to": "jS",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mS2",
+   "from": "jS",
+   "to": "cSE",
+   "lanes": 3,
+   "limit": 120,
+   "features": [
+    {
+     "type": "hill",
+     "at": 600,
+     "gradePercent": 5,
+     "rampLength": 160,
+     "plateauLength": 100
+    }
+   ],
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mW1",
+   "from": "cNW",
+   "to": "jW",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mW2",
+   "from": "jW",
+   "to": "cSW",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mE1",
+   "from": "cNE",
+   "to": "jE",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "mE2",
+   "from": "jE",
+   "to": "cSE",
+   "lanes": 3,
+   "limit": 120,
+   "sidewalks": false,
+   "median": 10
+  },
+  {
+   "id": "svl",
+   "from": "jN",
+   "to": "sv",
+   "lanes": 2,
+   "limit": 80,
+   "sidewalks": false,
+   "median": 4
+  },
+  {
+   "id": "vgl",
+   "from": "jS",
+   "to": "vg",
+   "lanes": 2,
+   "limit": 80,
+   "sidewalks": false,
+   "median": 4
+  },
+  {
+   "id": "va1",
+   "from": "v0a",
+   "to": "vg",
+   "lanes": 1,
+   "limit": 40,
+   "features": [
+    {
+     "type": "bump",
+     "at": 150
+    }
+   ]
+  },
+  {
+   "id": "va2",
+   "from": "vg",
+   "to": "v2a",
+   "lanes": 1,
+   "limit": 40,
+   "features": [
+    {
+     "type": "crossing",
+     "at": 150
+    }
+   ]
+  },
+  {
+   "id": "vb1",
+   "from": "v0b",
+   "to": "v1b",
+   "lanes": 1,
+   "limit": 40
+  },
+  {
+   "id": "vb2",
+   "from": "v1b",
+   "to": "v2b",
+   "lanes": 1,
+   "limit": 40,
+   "features": [
+    {
+     "type": "bump",
+     "at": 150
+    }
+   ]
+  },
+  {
+   "id": "vc0",
+   "from": "v0a",
+   "to": "v0b",
+   "lanes": 1,
+   "limit": 40
+  },
+  {
+   "id": "vc1",
+   "from": "vg",
+   "to": "v1b",
+   "lanes": 1,
+   "limit": 40,
+   "features": [
+    {
+     "type": "crossing",
+     "at": 130
+    }
+   ]
+  },
+  {
+   "id": "vc2",
+   "from": "v2a",
+   "to": "v2b",
+   "lanes": 1,
+   "limit": 40
+  },
+  {
+   "id": "er",
+   "from": "jE",
+   "to": "eEnd",
+   "lanes": 1,
+   "limit": 100,
+   "sidewalks": false
+  },
+  {
+   "id": "wr",
+   "from": "jW",
+   "to": "wEnd",
+   "lanes": 1,
+   "limit": 100,
+   "features": [
+    {
+     "type": "hill",
+     "at": 250,
+     "gradePercent": 7,
+     "rampLength": 80,
+     "plateauLength": 40
+    }
+   ],
+   "sidewalks": false
+  }
+ ],
+ "spawn": {
+  "lane": "mS1:f1",
+  "at": 250
+ },
+ "blocks": [
+  {
+   "x0": -275,
+   "z0": 1595,
+   "x1": -25,
+   "z1": 1805,
+   "density": 0.5
+  },
+  {
+   "x0": 25,
+   "z0": 1595,
+   "x1": 275,
+   "z1": 1805,
+   "density": 0.5
+  },
+  {
+   "x0": -150,
+   "z0": -1710,
+   "x1": -40,
+   "z1": -1600,
+   "density": 0.3
+  }
+ ],
+ "mosques": [
+  {
+   "x": 150,
+   "z": 1700,
+   "headingDeg": 180
+  }
+ ]
+}

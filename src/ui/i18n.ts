@@ -213,8 +213,15 @@ const STRINGS = {
   setPicture: { ar: 'الصورة', en: 'Picture' },
   setGearbox: { ar: 'ناقل الحركة', en: 'Gearbox' },
   languageShort: { ar: 'EN', en: 'ع' },
-  goHighway: { ar: 'إلى الطريق السريع', en: 'To the highway' },
-  msgHighway: { ar: 'الطريق الصحراوي: ١٢٠ كم/س. شغّل وانطلق.', en: 'The desert highway: 120 km/h. Start up and go.' },
+  freeHighway: { ar: 'الطريق السريع', en: 'Motorway' },
+  clutchUp: { ar: 'القابض: مرفوع', en: 'Clutch: up' },
+  clutchBite: { ar: 'نقطة التعشيق', en: 'Biting point' },
+  clutchAlmost: { ar: 'اضغط أكثر', en: 'Press further' },
+  clutchDown: { ar: 'مضغوط: بدّل الغيار', en: 'Down: change gear' },
+  menuHighwayNote: {
+    ar: 'خريطة منفصلة: طريق سريع ثلاث مسارات بسرعة ١٢٠ يلف في الصحراء، مع محطة وقرية. بلا فاحص.',
+    en: 'A separate map: a three-lane motorway at 120 km/h looping through the desert, with a service station and a village. No examiner.',
+  },
   menuKicker: { ar: 'سلطنة عُمان · تدريب على القيادة', en: 'Sultanate of Oman · Driver training' },
   hbOnShort: { ar: 'مشدودة', en: 'On' },
   hbOffShort: { ar: 'محرّرة', en: 'Off' },
@@ -285,8 +292,8 @@ const STRINGS = {
   },
   practiseTown: { ar: 'تدريب في المدينة مع ملاحظات', en: 'Practise in town, with notes' },
   menuFreeNote: {
-    ar: 'المدينة كلها لك: لا فاحص، لا أخطاء، لا تقييم.',
-    en: 'The whole town is yours: no examiner, no faults, no score.',
+    ar: 'مدينة بشوارع واسعة وطريق دائري سريع ومنطقة صناعية: لا فاحص، لا أخطاء، لا تقييم.',
+    en: 'A city of wide streets, a ring expressway and an industrial estate: no examiner, no faults, no score.',
   },
   menuTownNote: {
     ar: 'الفاحص يراقب ويخبرك بكل خطأ فوراً مع نصيحة.',

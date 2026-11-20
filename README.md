@@ -98,11 +98,12 @@ test. Step 1 is marked "start here" until five lessons are done, then step 3.
 
 **Modes** (home screen, Help, or the address): free drive `#free` (no
 examiner at all: no faults, no messages, no score; what runs behind the home
-screen) in an **open world** about 5 km across: a city of 16 junctions on
-wide streets (two lanes each way, signals and two-lane roundabouts), a
-three-lane ring expressway at 100 km/h with long sweeping curves, a desert
-highway at 120 km/h out to a village and a great loop back, a long west
-desert road, and an industrial estate; town practice with notes `#town`, yard practice `#yard`, yard test
+screen) in the **city**: 16 junctions on wide streets (two lanes each way,
+signals and two-lane roundabouts) inside a three-lane ring expressway at
+100 km/h with sweeping curves, and an industrial estate; the **motorway**
+`#highway`, a map of its own: a great loop of three-lane motorway at
+120 km/h through the desert with 500 m curves and hills, a service station
+and a village off it; town practice with notes `#town`, yard practice `#yard`, yard test
 `#yard-test`, road test `#road-test`, a lesson `#lesson-<id>`.
 
 In the **road test** the examiner tells you where to go (“at the roundabout,
@@ -351,7 +352,8 @@ grid (roundabout, signal, priority, bend, dead end) and the roads between them
 Traffic signals (`signals.ts`) are a pure function of time, so lamps, traffic
 and the examiner always agree.
 
-The free-drive **open world** (`src/data/maps/city.json`) is built by the same
+The free-drive **city** (`src/data/maps/city.json`) and **motorway**
+(`src/data/maps/highway.json`) is built by the same
 generator from a bigger description, so it has the same lanes, rules, signs
 and traffic. For it the generator also takes wide curves (a bend's radius,
 with a speed for it from about 3 m/s² sideways), a median width per road,
@@ -364,8 +366,11 @@ itself); or *automatic* (D/N/R). It sits between the player and the same
 manual car (`src/sim/driverAids.ts`). Lessons always use the manual.
 
 In free drive a **map** in the corner (on a computer) shows the roads round
-the car, the fast ones in amber, and **To the highway** puts the car on the
-desert highway.
+the car, the fast ones in amber.
+
+On touch screens the clutch pedal has a scale beside it (where it bites, and
+where it is down far enough to change gear) and says where it is in words;
+with the automatic clutch or gearbox it is not shown at all.
 
 **Interface**: IBM Plex Sans Arabic (SIL Open Font License), graphite glass
 and one amber accent; a rev-counter gauge round the speed; warning lamps
