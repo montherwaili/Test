@@ -52,6 +52,11 @@ import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
 import { buildCity, buildHighway, buildTown } from '../world/town';
 import { Minimap } from '../ui/minimap';
+import { mapThumb } from '../ui/mapThumb';
+import { icon } from '../ui/icons';
+import cityJson from '../data/maps/city.json';
+import highwayJson from '../data/maps/highway.json';
+import townJson from '../data/maps/town.json';
 import { impactMaterial } from '../audio/soundModel';
 import { Traffic, type PlayerState } from '../traffic/traffic';
 import { TrafficBodies } from '../world/trafficBodies';
@@ -436,6 +441,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const analog: AnalogInput = {};
   const touch = new TouchControls(app, tuning.clutch, handle);
   touch.setClutchShown(assist.mode === 'manual');
+  hud.setGearboxHelp(assist.mode);
 
   // Show the full-size touch controls on touch devices, or as soon as a finger lands.
   const enableTouch = () => document.body.classList.add('touch');
@@ -519,6 +525,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       if (key === 'gearbox') {
         assist.mode = gearboxMode();
         touch.setClutchShown(assist.mode === 'manual');
+        hud.setGearboxHelp(assist.mode);
+  hud.setGearboxHelp(assist.mode);
         // Automatic has no numbered gears to hold: any forward gear becomes D.
         if (assist.mode === 'automatic' && selectedGear > 1) selectedGear = 1;
       }
@@ -537,6 +545,18 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     onSettings: () => settingsPanel.show(),
     onClose: () => mainMenu.hide(),
     closeLabel: free ? 'menuClose' : 'menuBack',
+    driveMaps: [
+      { mode: 'free', title: 'freeCity', facts: 'factsCity', note: 'menuFreeNote', thumb: () => mapThumb(cityJson) },
+      { mode: 'highway', title: 'freeHighway', facts: 'factsHighway', note: 'menuHighwayNote', thumb: () => mapThumb(highwayJson) },
+    ],
+    practiceMaps: [
+      { mode: 'town', title: 'practiseTown', facts: 'factsTown', note: 'menuTownNote', thumb: () => mapThumb(townJson) },
+      { mode: 'yard', title: 'practiseYard', facts: 'factsYard', note: 'menuYardNote', thumb: () => icon('cone', 'tile-icon') },
+    ],
+    testParts: [
+      { mode: 'yardTest', title: 'testYard', facts: 'factsYardTest', note: 'menuYardTestNote', thumb: () => icon('cone', 'tile-icon') },
+      { mode: 'roadTest', title: 'testRoad', facts: 'factsRoadTest', note: 'menuRoadTestNote', thumb: () => mapThumb(townJson) },
+    ],
   });
   const nextLesson = lessonDef ? LESSONS[LESSONS.indexOf(lessonDef) + 1] : undefined;
   const results = new ResultsScreen(app, {

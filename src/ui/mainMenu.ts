@@ -1,14 +1,24 @@
 /**
- * The home screen: the way through the game in three steps - learn the
- * controls and the manoeuvres in lessons, practise (freely, or with the
- * examiner's notes), then take the test, yard first and road second as at
- * the real test.
+ * The home screen, laid out like a game's: the sections down one side
+ * (lessons, free drive, practice with the examiner, the test, settings),
+ * and what is in the chosen one beside them - the lessons in order, the
+ * maps to drive, the practice grounds, the two parts of the test.
  */
 import type { LessonDef } from '../learning/lesson';
 import type { ProgressData } from '../learning/progress';
 import type { GameMode } from './hud';
 import { getLang, onLangChange, setLang, t, type StringKey } from './i18n';
-import { icon } from './icons';
+import { icon, type IconName } from './icons';
+
+/** A map offered in the menu, with a drawing of its roads. */
+export interface MenuMap {
+  mode: GameMode;
+  title: StringKey;
+  note: StringKey;
+  /** Short facts ("16 junctions · 60 km/h"). */
+  facts: StringKey;
+  thumb: () => Element;
+}
 
 export interface MainMenuActions {
   onMode: (mode: GameMode) => void;
@@ -19,6 +29,10 @@ export interface MainMenuActions {
   onClose: () => void;
   /** Label of the close button ("carry on free driving", or just "back"). */
   closeLabel: StringKey;
+  /** Free-drive maps, practice grounds and test parts, each with its picture. */
+  driveMaps: MenuMap[];
+  practiceMaps: MenuMap[];
+  testParts: MenuMap[];
 }
 
 /** Lessons count as learned once they have been completed (one star or more). */
@@ -41,6 +55,8 @@ export function suggestedStep(p: ProgressData, lessons: LessonDef[]): 1 | 2 | 3 
   return 3;
 }
 
+type Section = 'lessons' | 'drive' | 'practise' | 'test';
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (className) e.className = className;
@@ -51,6 +67,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, pa
 
 export class MainMenu {
   readonly root: HTMLElement;
+  private section: Section | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -77,89 +94,107 @@ export class MainMenu {
     this.root.hidden = true;
   }
 
-  private button(parent: HTMLElement, text: string, onClick: () => void, primary = false, note?: string): HTMLButtonElement {
-    const b = el('button', `menu-choice${primary ? ' primary' : ''}`, parent);
-    b.type = 'button';
-    const words = el('span', 'choice-words', b);
-    el('span', 'choice-title', words, text);
-    if (note) el('span', 'choice-note', words, note);
-    b.append(icon('chevron', 'choice-go'));
-    b.addEventListener('click', onClick);
-    return b;
-  }
-
   private render(): void {
-    const lang = getLang();
     const p = this.progress();
-    const done = lessonsDone(p, this.lessons);
-    const next = nextLesson(p, this.lessons);
     const step = suggestedStep(p, this.lessons);
+    this.section ??= step === 1 ? 'lessons' : 'test';
     this.root.replaceChildren();
-    const card = el('div', 'menu-card', this.root);
+    const shell = el('div', 'menu-shell', this.root);
 
-    // The title side: name, one line on how it works, and the next thing to do.
-    const head = el('header', 'menu-head', card);
-    el('div', 'menu-kicker', head, t('menuKicker'));
-    el('h1', '', head, t('title'));
-    el('p', 'menu-lead', head, t('menuLead'));
-    const go = el('button', 'menu-cta', head);
-    go.type = 'button';
-    if (step === 1 && next) {
-      el('span', '', go, `${t('menuNextLesson')}: ${next.title[lang]}`);
-      go.addEventListener('click', () => this.actions.onLesson(next.id));
-    } else {
-      el('span', '', go, t('testYard'));
-      go.addEventListener('click', () => this.actions.onMode('yardTest'));
-    }
-    go.append(icon('chevron'));
-    const foot = el('div', 'menu-foot', head);
-
-    const steps = el('div', 'menu-steps', card);
-    const stepBox = (n: 1 | 2 | 3, title: StringKey, intro: StringKey) => {
-      const box = el('section', `menu-step${n === step ? ' current' : ''}`, steps);
-      const top = el('div', 'step-top', box);
-      el('span', 'step-num', top, `0${n}`);
-      el('h2', '', top, t(title));
-      if (n === step) el('span', 'step-badge', top, t('menuStartHere'));
-      el('p', 'step-intro', box, t(intro));
-      return el('div', 'step-choices', box);
+    // --- the sections ---
+    const nav = el('nav', 'menu-nav', shell);
+    const brand = el('div', 'menu-brand', nav);
+    el('div', 'menu-kicker', brand, t('menuKicker'));
+    el('h1', '', brand, t('title'));
+    const list = el('div', 'menu-sections', nav);
+    const done = lessonsDone(p, this.lessons);
+    const item = (key: Section | 'settings', name: IconName, label: StringKey, sub?: string) => {
+      const b = el('button', `menu-section${key === this.section ? ' on' : ''}`, list);
+      b.type = 'button';
+      b.append(icon(name));
+      el('span', 'section-label', b, t(label));
+      if (sub) el('span', 'section-sub', b, sub);
+      b.addEventListener('click', () => {
+        if (key === 'settings') this.actions.onSettings();
+        else {
+          this.section = key;
+          this.render();
+        }
+      });
     };
-
-    // 1. Learn
-    const learn = stepBox(1, 'menuLearn', 'menuLearnIntro');
-    el('p', 'step-progress', learn, t('menuLessonsDone', { n: String(done), total: String(this.lessons.length) }));
-    if (next) {
-      this.button(learn, `${t('menuNextLesson')}: ${next.title[lang]}`, () => this.actions.onLesson(next.id), step === 1, next.intro[lang]);
-    }
-    this.button(learn, t('menuAllLessons'), this.actions.onAllLessons);
-
-    // 2. Practise
-    const practise = stepBox(2, 'menuPractise', 'menuPractiseIntro');
-    this.button(practise, t('freeDrive'), () => this.actions.onMode('free'), false, t('menuFreeNote'));
-    this.button(practise, t('freeHighway'), () => this.actions.onMode('highway'), false, t('menuHighwayNote'));
-    this.button(practise, t('practiseTown'), () => this.actions.onMode('town'), false, t('menuTownNote'));
-    this.button(practise, t('practiseYard'), () => this.actions.onMode('yard'), false, t('menuYardNote'));
-
-    // 3. Test
-    const test = stepBox(3, 'menuTest', 'menuTestIntro');
-    this.button(test, `1 · ${t('testYard')}`, () => this.actions.onMode('yardTest'), step === 3, t('menuYardTestNote'));
-    this.button(test, `2 · ${t('testRoad')}`, () => this.actions.onMode('roadTest'), false, t('menuRoadTestNote'));
-    if (p.tests.taken > 0) el('p', 'step-progress', test, t('testsTaken', { n: String(p.tests.taken), p: String(p.tests.passed) }));
-
-    const settings = el('button', 'menu-link', foot);
-    settings.type = 'button';
-    settings.append(icon('settings'));
-    el('span', '', settings, t('settings'));
-    settings.addEventListener('click', this.actions.onSettings);
-    const lang2 = el('button', 'menu-link', foot);
-    lang2.type = 'button';
-    lang2.append(icon('globe'));
-    el('span', '', lang2, t('language'));
-    lang2.addEventListener('click', () => setLang(getLang() === 'ar' ? 'en' : 'ar'));
+    item('lessons', 'book', 'navLessons', `${done}/${this.lessons.length}`);
+    item('drive', 'wheel', 'navDrive');
+    item('practise', 'cone', 'navPractise');
+    item('test', 'flag', 'navTest', p.tests.taken > 0 ? `${p.tests.passed}/${p.tests.taken}` : undefined);
+    item('settings', 'settings', 'settings');
+    const foot = el('div', 'menu-foot', nav);
+    const lang = el('button', 'menu-link', foot);
+    lang.type = 'button';
+    lang.append(icon('globe'));
+    el('span', '', lang, t('language'));
+    lang.addEventListener('click', () => setLang(getLang() === 'ar' ? 'en' : 'ar'));
     const close = el('button', 'menu-link menu-close', foot);
     close.type = 'button';
     el('span', '', close, t(this.actions.closeLabel));
     close.addEventListener('click', this.actions.onClose);
-    el('p', 'menu-note', head, t('menuUnofficial'));
+
+    // --- what is in the chosen section ---
+    const pane = el('section', 'menu-pane', shell);
+    if (this.section === 'lessons') this.renderLessons(pane, p);
+    else if (this.section === 'drive') this.renderMaps(pane, 'navDrive', 'driveLead', this.actions.driveMaps);
+    else if (this.section === 'practise') this.renderMaps(pane, 'navPractise', 'practiseLead', this.actions.practiceMaps);
+    else this.renderMaps(pane, 'navTest', 'testLead', this.actions.testParts, p.tests.taken > 0 ? t('testsTaken', { n: String(p.tests.taken), p: String(p.tests.passed) }) : undefined);
+    el('p', 'menu-note', pane, t('menuUnofficial'));
+  }
+
+  private paneHead(pane: HTMLElement, title: StringKey, lead: StringKey, extra?: string): void {
+    const head = el('header', 'pane-head', pane);
+    el('h2', '', head, t(title));
+    el('p', 'pane-lead', head, t(lead));
+    if (extra) el('p', 'pane-extra', head, extra);
+  }
+
+  private renderLessons(pane: HTMLElement, p: ProgressData): void {
+    const lang = getLang();
+    const done = lessonsDone(p, this.lessons);
+    this.paneHead(pane, 'navLessons', 'lessonsLead');
+    const bar = el('div', 'lesson-progress', pane);
+    const fill = el('div', 'lesson-progress-fill', bar);
+    fill.style.width = `${(done / this.lessons.length) * 100}%`;
+    el('span', 'lesson-progress-text', pane, t('menuLessonsDone', { n: String(done), total: String(this.lessons.length) }));
+    const next = nextLesson(p, this.lessons);
+    const rows = el('div', 'lesson-rows', pane);
+    this.lessons.forEach((l, i) => {
+      const stars = p.stars[l.id] ?? 0;
+      const row = el('button', `lesson-row${l === next ? ' next' : ''}${stars > 0 ? ' done' : ''}`, rows);
+      row.type = 'button';
+      el('span', 'lesson-num', row, String(i + 1).padStart(2, '0'));
+      const words = el('span', 'lesson-words', row);
+      el('span', 'lesson-title', words, l.title[lang]);
+      el('span', 'lesson-intro', words, l.intro[lang]);
+      const st = el('span', 'lesson-stars', row);
+      for (let k = 0; k < 3; k++) st.append(icon('star', k < stars ? 'won' : ''));
+      if (l === next) el('span', 'lesson-go', row, t('startLesson'));
+      row.addEventListener('click', () => this.actions.onLesson(l.id));
+    });
+  }
+
+  private renderMaps(pane: HTMLElement, title: StringKey, lead: StringKey, maps: MenuMap[], extra?: string): void {
+    this.paneHead(pane, title, lead, extra);
+    const grid = el('div', 'map-tiles', pane);
+    for (const m of maps) {
+      const tile = el('button', 'map-tile', grid);
+      tile.type = 'button';
+      const pic = el('div', 'map-pic', tile);
+      pic.append(m.thumb());
+      const words = el('div', 'map-words', tile);
+      el('span', 'map-title', words, t(m.title));
+      el('span', 'map-facts', words, t(m.facts));
+      el('span', 'map-note', words, t(m.note));
+      const go = el('span', 'map-go', tile);
+      el('span', '', go, t('drive'));
+      go.append(icon('chevron'));
+      tile.addEventListener('click', () => this.actions.onMode(m.mode));
+    }
   }
 }

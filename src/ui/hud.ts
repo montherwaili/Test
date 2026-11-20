@@ -88,6 +88,8 @@ export class Hud {
   /** Elements whose words are a tooltip (icons). */
   private readonly titled: [HTMLElement, StringKey][] = [];
   private toastTimer = 0;
+  /** The moving-off steps in the help, worded for the gearbox in use. */
+  private readonly stepItems: HTMLElement[] = [];
   private last = { speed: '', rpm: -1, gear: '', camera: '' as string, limit: '' };
 
   constructor(parent: HTMLElement, callbacks: HudCallbacks) {
@@ -241,6 +243,21 @@ export class Hud {
     }
   }
 
+  /** Word the moving-off steps for the gearbox in use (with or without the clutch). */
+  setGearboxHelp(mode: 'manual' | 'autoClutch' | 'automatic'): void {
+    const keys: StringKey[] =
+      mode === 'manual'
+        ? ['helpStep1', 'helpStep2', 'helpStep3', 'helpStep4']
+        : mode === 'autoClutch'
+          ? ['helpStep1', 'helpStep2Auto', 'helpStep3', 'helpStep4Auto']
+          : ['helpStep1', 'helpStep2Automatic', 'helpStep3', 'helpStep4Auto'];
+    this.stepItems.forEach((li, i) => {
+      const entry = this.labelled.find(([node]) => node === li);
+      if (entry) entry[1] = keys[i]!;
+      li.textContent = t(keys[i]!);
+    });
+  }
+
   /** Offer (or stop offering) to put a flipped car back on its wheels. */
   showRightCar(show: boolean): void {
     if (this.rightButton.hidden === show) this.rightButton.hidden = !show;
@@ -335,7 +352,9 @@ export class Hud {
     this.label(el('h3', '', card), 'helpMoveOff');
     const steps = el('ol', 'help-steps', card);
     for (const key of ['helpStep1', 'helpStep2', 'helpStep3', 'helpStep4'] as const) {
-      this.label(el('li', '', steps), key);
+      const li = el('li', '', steps);
+      this.label(li, key);
+      this.stepItems.push(li);
     }
 
     this.label(el('h3', 'keys-title', card), 'helpKeys');
@@ -345,7 +364,8 @@ export class Hud {
       this.label(el('dt', '', rowEl), key as StringKey);
       const dd = el('dd', '', rowEl);
       dd.dir = 'ltr';
-      dd.textContent = keys;
+      // Each key as a keycap.
+      for (const k of keys.split(/\s*\/\s*|,\s*/).filter(Boolean)) el('kbd', '', dd).textContent = k;
     }
 
     const foot = el('div', 'help-foot', card);
