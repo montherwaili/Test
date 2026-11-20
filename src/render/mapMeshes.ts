@@ -35,6 +35,7 @@ import {
   type MarkingColor,
   type SolidDef,
 } from '../world/map';
+import { asphaltDetail, facadeDetail, sandDetail } from './surfaceDetail';
 import type { SignalState } from '../world/roads/signals';
 import { signTexture, signTextureKey } from './signs';
 
@@ -51,7 +52,6 @@ const COLORS = {
   leaf: 0x3f7d3a,
   metal: 0x6f7378,
   housing: 0x1d1f22,
-  window: 0x2c3944,
   door: 0x6b4a2f,
   dome: 0xd9b45a,
   rock: 0xa98c66,
@@ -84,6 +84,13 @@ export interface MapMeshes {
   stats: { meshes: number };
 }
 
+const NO_DETAIL = [0, 0, 0, 0] as const;
+
+/** Anything geometry can be added to (a Batch, or a ChunkedBatch of them). */
+interface Adder {
+  add(g: BufferGeometry, color: number, x: number, y: number, z: number, yaw?: number, detail?: readonly [number, number, number, number]): void;
+}
+
 /** Collects geometries, coloured per piece, to be merged into one mesh. */
 class Batch {
   private parts: BufferGeometry[] = [];
@@ -91,8 +98,11 @@ class Batch {
   private readonly q = new Quaternion();
   private readonly up = new Vector3(0, 1, 0);
 
-  /** Add a geometry at a position, turned `yaw` radians about the vertical. The geometry is consumed. */
-  add(g: BufferGeometry, color: number, x: number, y: number, z: number, yaw = 0): void {
+  /**
+   * Add a geometry at a position, turned `yaw` radians about the vertical. The geometry is consumed.
+   * `detail` marks surfaces for the shader (see surfaceDetail.ts): (1, wall start, wall length, height) for a building wall.
+   */
+  add(g: BufferGeometry, color: number, x: number, y: number, z: number, yaw = 0, detail: readonly [number, number, number, number] = NO_DETAIL): void {
     const geo = g.index ? g.toNonIndexed() : g;
     this.q.setFromAxisAngle(this.up, yaw);
     this.m.compose(new Vector3(x, y, z), this.q, new Vector3(1, 1, 1));
@@ -106,6 +116,9 @@ class Batch {
       colors[i * 3 + 2] = c.b;
     }
     geo.setAttribute('color', new BufferAttribute(colors, 3));
+    const details = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) details.set(detail, i * 4);
+    geo.setAttribute('detail', new BufferAttribute(details, 4));
     geo.deleteAttribute('uv');
     this.parts.push(geo);
   }
@@ -124,8 +137,32 @@ class Batch {
 }
 
 /** Collects flat strips of paint into one geometry per colour. */
+/** Size of the squares the map is cut into, m: what is behind the camera is then skipped, not drawn. */
+const CHUNK = 200;
+const chunkKey = (x: number, z: number) => `${Math.floor(x / CHUNK)},${Math.floor(z / CHUNK)}`;
+
+/** A Batch per square of the map: each becomes its own mesh. */
+class ChunkedBatch {
+  private readonly chunks = new Map<string, Batch>();
+
+  add(g: BufferGeometry, color: number, x: number, y: number, z: number, yaw = 0, detail: readonly [number, number, number, number] = NO_DETAIL): void {
+    const key = chunkKey(x, z);
+    let b = this.chunks.get(key);
+    if (!b) this.chunks.set(key, (b = new Batch()));
+    b.add(g, color, x, y, z, yaw, detail);
+  }
+
+  get empty(): boolean {
+    return this.chunks.size === 0;
+  }
+
+  build(): BufferGeometry[] {
+    return [...this.chunks.values()].map((b) => b.build());
+  }
+}
+
 class PaintBatch {
-  private positions: number[] = [];
+  private readonly chunks = new Map<string, number[]>();
 
   constructor(private readonly map: BuiltMap) {}
 
@@ -144,7 +181,10 @@ class PaintBatch {
       [bx + nx, bz + nz],
     ];
     const p = corners.map(([x, z]) => [x, surfaceHeight(this.map, x, z) + PAINT_LIFT, z] as const);
-    for (const i of [0, 1, 2, 0, 2, 3]) this.positions.push(p[i]![0], p[i]![1], p[i]![2]);
+    const key = chunkKey((ax + bx) / 2, (az + bz) / 2);
+    let positions = this.chunks.get(key);
+    if (!positions) this.chunks.set(key, (positions = []));
+    for (const i of [0, 1, 2, 0, 2, 3]) positions.push(p[i]![0], p[i]![1], p[i]![2]);
   }
 
   /** A line through several points, solid or dashed ([painted, gap] metres). */
@@ -175,16 +215,16 @@ class PaintBatch {
     }
   }
 
-  build(color: number): Mesh<BufferGeometry, MeshBasicMaterial> | null {
-    if (this.positions.length === 0) return null;
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(new Float32Array(this.positions), 3));
-    const mesh = new Mesh(
-      g,
-      new MeshBasicMaterial({ color, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
-    );
-    mesh.renderOrder = 2;
-    return mesh;
+  build(color: number): { meshes: Mesh[]; material: MeshBasicMaterial } {
+    const material = new MeshBasicMaterial({ color, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const meshes = [...this.chunks.values()].map((positions) => {
+      const g = new BufferGeometry();
+      g.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+      const mesh = new Mesh(g, material);
+      mesh.renderOrder = 2;
+      return mesh;
+    });
+    return { meshes, material };
   }
 }
 
@@ -212,11 +252,25 @@ function hillGeometry(width: number, ramp: number, plateau: number, rise: number
   return g;
 }
 
-function addBuilding(batch: Batch, s: Extract<SolidDef, { shape: 'box' }>, rnd: () => number): void {
+function addBuilding(batch: Adder, s: Extract<SolidDef, { shape: 'box' }>, rnd: () => number): void {
   const [w, h, d] = s.size;
   const [x, , z] = s.center;
   const wall = BUILDING_STYLES[(s.style ?? 0) % BUILDING_STYLES.length]!;
-  batch.add(new BoxGeometry(w, h, d), wall, x, h / 2, z);
+  // Four walls, each marked for the shader to draw its windows (no window geometry: no triangles).
+  // A plane faces +Z; turned by yaw it faces (sin yaw, cos yaw).
+  const walls: [number, number, number, number, number, number][] = [
+    // [centre x, centre z, width, yaw, start along, length]
+    [x, z + d / 2, w, 0, x - w / 2, w],
+    [x + w / 2, z, d, Math.PI / 2, z - d / 2, d],
+    [x, z - d / 2, w, Math.PI, x - w / 2, w],
+    [x - w / 2, z, d, -Math.PI / 2, z - d / 2, d],
+  ];
+  for (const [cx, cz, width, yaw, start, len] of walls) {
+    batch.add(new PlaneGeometry(width, h), wall, cx, h / 2, cz, yaw, [1, start, len, h]);
+  }
+  const roof = new PlaneGeometry(w, d);
+  roof.rotateX(-Math.PI / 2);
+  batch.add(roof, new Color(wall).multiplyScalar(0.92).getHex(), x, h, z);
   // A parapet round the flat roof.
   for (const [px, pz, pw, pd] of [
     [0, d / 2 - 0.15, w, 0.3],
@@ -226,28 +280,22 @@ function addBuilding(batch: Batch, s: Extract<SolidDef, { shape: 'box' }>, rnd: 
   ] as const) {
     batch.add(new BoxGeometry(pw, 0.6, pd), wall, x + px, h + 0.3, z + pz);
   }
-  // Windows on every floor, on all four sides; a door on one.
-  const floors = Math.max(1, Math.round(h / 3.2));
-  const doorSide = Math.floor(rnd() * 4);
-  for (let side = 0; side < 4; side++) {
-    const along = side % 2 === 0 ? w : d;
-    const out = (side % 2 === 0 ? d : w) / 2 + 0.03;
-    const count = Math.max(1, Math.floor(along / 3.4));
-    for (let f = 0; f < floors; f++) {
-      for (let i = 0; i < count; i++) {
-        const a = -along / 2 + ((i + 0.5) * along) / count;
-        const isDoor = f === 0 && side === doorSide && i === Math.floor(count / 2);
-        const g = isDoor ? new BoxGeometry(1.1, 2.2, 0.08) : new BoxGeometry(1.0, 1.3, 0.08);
-        const y = isDoor ? 1.1 : f * 3.2 + 1.9;
-        const sign = side < 2 ? 1 : -1;
-        if (side % 2 === 0) batch.add(g, isDoor ? COLORS.door : COLORS.window, x + a, y, z + sign * out);
-        else batch.add(g, isDoor ? COLORS.door : COLORS.window, x + sign * out, y, z + a, Math.PI / 2);
-      }
-    }
+  // A door, and on some roofs a water tank and an air-conditioning unit, as on many Omani houses.
+  const side = Math.floor(rnd() * 4);
+  const [cx, cz, , yaw] = walls[side]!;
+  const out = 0.05;
+  batch.add(new BoxGeometry(1.2, 2.3, 0.1), COLORS.door, cx + Math.sin(yaw) * out, 1.15, cz + Math.cos(yaw) * out, yaw);
+  if (rnd() < 0.6) {
+    const tx = x + (rnd() - 0.5) * (w - 3);
+    const tz = z + (rnd() - 0.5) * (d - 3);
+    batch.add(new CylinderGeometry(0.6, 0.6, 1.3, 10), 0xe9e6dc, tx, h + 0.65, tz);
+  }
+  if (rnd() < 0.7) {
+    batch.add(new BoxGeometry(1.0, 0.7, 0.8), 0xc9ccce, x + (rnd() - 0.5) * (w - 2.5), h + 0.35, z + (rnd() - 0.5) * (d - 2.5));
   }
 }
 
-function addPalm(batch: Batch, x: number, z: number, height: number, radius: number): void {
+function addPalm(batch: Adder, x: number, z: number, height: number, radius: number): void {
   batch.add(new CylinderGeometry(radius * 0.7, radius, height, 6), COLORS.trunk, x, height / 2, z);
   // A crown of drooping fronds: two flattened cones.
   const upper = new ConeGeometry(2.4, 1.1, 7);
@@ -267,10 +315,9 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   };
 
   // --- ground and paving -----------------------------------------------------
-  const ground = new Mesh(
-    new PlaneGeometry(def.groundSize, def.groundSize),
-    new MeshStandardMaterial({ color: COLORS.sand, roughness: 1 }),
-  );
+  const sand = new MeshStandardMaterial({ color: COLORS.sand, roughness: 1 });
+  sandDetail(sand);
+  const ground = new Mesh(new PlaneGeometry(def.groundSize, def.groundSize), sand);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   root.add(ground);
@@ -291,17 +338,16 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
     paving.add(g, COLORS.asphalt, d.center[0], 0.006, d.center[1]);
   }
   if (!paving.empty) {
-    const mesh = new Mesh(
-      paving.build(),
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
-    );
+    const asphalt = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    asphaltDetail(asphalt);
+    const mesh = new Mesh(paving.build(), asphalt);
     mesh.receiveShadow = true;
     mesh.renderOrder = 1;
     root.add(mesh);
   }
 
   // --- everything solid --------------------------------------------------------
-  const solid = new Batch();
+  const solid = new ChunkedBatch();
 
   for (const h of map.hills) {
     const d = h.def;
@@ -422,10 +468,14 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   };
 
   if (!solid.empty) {
-    const mesh = new Mesh(solid.build(), new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true }));
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    root.add(mesh);
+    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true });
+    facadeDetail(material);
+    for (const geometry of solid.build()) {
+      const mesh = new Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+    }
   }
 
   // --- paint ------------------------------------------------------------------------
@@ -465,10 +515,10 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   }
   const paintMaterials: { material: MeshBasicMaterial; day: number }[] = [];
   for (const [color, b] of batches) {
-    const mesh = b.build(MARKING_COLORS[color]);
-    if (!mesh) continue;
-    root.add(mesh);
-    paintMaterials.push({ material: mesh.material, day: MARKING_COLORS[color] });
+    const { meshes, material } = b.build(MARKING_COLORS[color]);
+    if (meshes.length === 0) continue;
+    root.add(...meshes);
+    paintMaterials.push({ material, day: MARKING_COLORS[color] });
   }
   const setNight: MapMeshes['setNight'] = (night) => {
     for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.35 : 1);

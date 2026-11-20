@@ -3,6 +3,7 @@
  * working mirrors. Reads simulation state; never writes it.
  */
 import {
+  ACESFilmicToneMapping,
   Color,
   DirectionalLight,
   Fog,
@@ -23,6 +24,8 @@ import type { BuiltMap } from '../world/map';
 import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
+import { DAY_SKY, NIGHT_SKY as NIGHT_SKY_COLORS, SkyDome } from './sky';
+import { nightUniform } from './surfaceDetail';
 import { TrafficMeshes } from './trafficMeshes';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
@@ -40,12 +43,14 @@ export interface RenderQuality {
   /** Mirror pictures refreshed per frame (0 = mirrors off, 3 = all every frame). */
   mirrorsPerFrame: number;
   mirrorHeight: number;
+  /** How far the view reaches at most, m (fog closes in before it). */
+  viewDistance: number;
 }
 
 export const QUALITY_PRESETS: Record<'low' | 'medium' | 'high', RenderQuality> = {
-  low: { pixelRatio: 1, antialias: false, shadows: false, shadowMapSize: 0, mirrorsPerFrame: 1, mirrorHeight: 64 },
-  medium: { pixelRatio: 1.5, antialias: true, shadows: true, shadowMapSize: 1024, mirrorsPerFrame: 1, mirrorHeight: 96 },
-  high: { pixelRatio: 2, antialias: true, shadows: true, shadowMapSize: 2048, mirrorsPerFrame: 3, mirrorHeight: 160 },
+  low: { pixelRatio: 1, antialias: false, shadows: false, shadowMapSize: 0, mirrorsPerFrame: 1, mirrorHeight: 64, viewDistance: 650 },
+  medium: { pixelRatio: 1.5, antialias: true, shadows: true, shadowMapSize: 1024, mirrorsPerFrame: 1, mirrorHeight: 96, viewDistance: 1000 },
+  high: { pixelRatio: 2, antialias: true, shadows: true, shadowMapSize: 2048, mirrorsPerFrame: 3, mirrorHeight: 160, viewDistance: 1600 },
 };
 
 /** Everything the renderer needs to know about the car this frame. */
@@ -65,10 +70,10 @@ export interface LooseView {
   rotation: Quat;
 }
 
-const SKY = 0xa9d3f0;
-const HAZE = 0xdfe6ea;
-const NIGHT_SKY = 0x0b1022;
-const NIGHT_HAZE = 0x10162a;
+const HAZE = DAY_SKY.horizon;
+const NIGHT_HAZE = NIGHT_SKY_COLORS.horizon;
+/** Where the sun is, relative to what it lights: high, from the south-east. */
+const SUN_OFFSET = new Vector3(50, 90, 35);
 /** Steering wheel turns per unit of steering input, rad (about 1.4 turns each way). */
 const STEERING_WHEEL_LOCK = Math.PI * 2.8;
 
@@ -81,6 +86,7 @@ export class GameRenderer {
   readonly renderer: WebGLRenderer;
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(55, 1, 0.1, 900);
+  private readonly skyDome: SkyDome;
   mode: CameraMode = 'chase';
   /** Free camera: angle round the car (rad), height angle (rad) and distance (m). */
   readonly orbit = { yaw: 0.6, pitch: 0.45, distance: 14 };
@@ -114,13 +120,23 @@ export class GameRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.pixelRatio));
     this.renderer.shadowMap.enabled = quality.shadows;
     this.renderer.shadowMap.type = PCFShadowMap;
+    // Film-like response to light: bright sun without white-out, rich shade.
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
 
-    this.scene.background = new Color(SKY);
-    this.scene.fog = new Fog(HAZE, 140, 520);
+    // How far you can see grows with the map: the city's highway runs out into the desert.
+    const size = builtMap.def.groundSize;
+    const fogEnd = Math.min(Math.max(520, size * 0.46), quality.viewDistance);
+    this.camera.far = fogEnd * 1.15;
+    this.scene.background = new Color(HAZE);
+    this.scene.fog = new Fog(HAZE, Math.max(140, fogEnd * 0.22), fogEnd);
+    this.skyDome = new SkyDome(fogEnd);
+    this.skyDome.setSunDirection(SUN_OFFSET);
+    this.scene.add(this.skyDome.mesh);
 
-    this.sky = new HemisphereLight(0xdbeeff, 0xcdb58a, 1.5);
+    this.sky = new HemisphereLight(0xcfe4ff, 0xcdb58a, 1.35);
     this.scene.add(this.sky);
-    this.sun = new DirectionalLight(0xfff1d8, 2.6);
+    this.sun = new DirectionalLight(0xfff1d8, 2.9);
     this.sun.castShadow = quality.shadows;
     if (quality.shadows) {
       this.sun.shadow.mapSize.set(quality.shadowMapSize, quality.shadowMapSize);
@@ -132,6 +148,7 @@ export class GameRenderer {
       c.near = 1;
       c.far = 220;
       this.sun.shadow.bias = -0.0006;
+      this.sun.shadow.normalBias = 0.03;
     }
     this.scene.add(this.sun, this.sun.target);
 
@@ -221,11 +238,13 @@ export class GameRenderer {
   /** Switch between day and night lighting. */
   setNight(night: boolean): void {
     this.night = night;
-    (this.scene.background as Color).set(night ? NIGHT_SKY : SKY);
+    (this.scene.background as Color).set(night ? NIGHT_HAZE : HAZE);
     (this.scene.fog as Fog).color.set(night ? NIGHT_HAZE : HAZE);
-    this.sky.intensity = night ? 0.22 : 1.5;
+    this.skyDome.setColors(night ? NIGHT_SKY_COLORS : DAY_SKY, night);
+    nightUniform.value = night ? 1 : 0;
+    this.sky.intensity = night ? 0.22 : 1.35;
     // The same light plays the sun by day and the moon by night.
-    this.sun.intensity = night ? 0.25 : 2.6;
+    this.sun.intensity = night ? 0.25 : 2.9;
     this.sun.color.set(night ? 0x9fb4ff : 0xfff1d8);
     this.map.setNight(night);
   }
@@ -278,7 +297,7 @@ export class GameRenderer {
     }
 
     // The sun's shadow box follows the car.
-    this.sun.position.set(this.carPos.x + 50, this.carPos.y + 90, this.carPos.z + 35);
+    this.sun.position.copy(this.carPos).add(SUN_OFFSET);
     this.sun.target.position.copy(this.carPos);
 
     this.forward.set(0, 0, -1).applyQuaternion(this.carQuat);
@@ -347,6 +366,7 @@ export class GameRenderer {
       this.shakeLevel = 0;
     }
     cam.updateProjectionMatrix();
+    this.skyDome.follow(cam.position);
 
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, cam);

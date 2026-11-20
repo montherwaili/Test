@@ -49,7 +49,7 @@ import { buildMap, surfaceHeight, type BuiltMap, type MapDef } from '../world/ma
 import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
-import { buildTown } from '../world/town';
+import { buildCity, buildTown } from '../world/town';
 import { Traffic, type PlayerState } from '../traffic/traffic';
 import { TrafficBodies } from '../world/trafficBodies';
 
@@ -208,7 +208,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
 
   const tuning = createDefaultTuning();
   const physics = new PhysicsWorld(tuning.sim.stepHz, tuning.body.gravity);
-  // The town by default; #yard (or ?map=yard) is the test yard, ?map=track the bare test track.
+  // Free drive in the city; the other town modes in the town; #yard (or ?map=yard) the test yard, ?map=track the bare test track.
   const mode = modeChoice();
   const testing = mode === 'roadTest' || mode === 'yardTest';
   const free = mode === 'free';
@@ -219,7 +219,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       ? buildMap(testTrack as MapDef, physics)
       : inYard
         ? buildMap(yardJson as unknown as MapDef, physics)
-        : buildTown(physics);
+        : free
+          ? buildCity(physics)
+          : buildTown(physics);
   // The road test starts where its route does.
   if (mode === 'roadTest' && map.network) {
     const lane = map.network.lane(ROAD_ROUTE.start.lane);
@@ -255,8 +257,12 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     : lessonDef
       ? (lessonDef.traffic ?? 0)
       : phone
-        ? 10
-        : 14;
+        ? free
+          ? 14
+          : 10
+        : free
+          ? 26
+          : 14;
   const traffic = network
     ? new Traffic(network, {
         cars: carCount,
