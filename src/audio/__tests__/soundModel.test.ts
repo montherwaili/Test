@@ -75,37 +75,39 @@ describe('tyres, road and impacts', () => {
 });
 
 describe('recorded engine mix', () => {
-  const POINTS = [1100, 1600, 2200, 3000, 3800, 4600];
+  const POINTS = [992, 1500, 2100, 2800, 3600, 4400];
   const level = (mix: ReturnType<typeof recordedMix>) => Math.sqrt(mix.reduce((a, l) => a + l.gain * l.gain, 0));
   const playing = (mix: ReturnType<typeof recordedMix>) => mix.filter((l) => l.gain > 1e-9).map((l) => l.name);
 
   it('plays the real idle at idle, at its own speed', () => {
-    const mix = recordedMix(719, 0.1, 719, POINTS);
+    const mix = recordedMix(800, 0.1, 800, POINTS);
     expect(playing(mix)).toEqual(['idle']);
     expect(mix.find((l) => l.name === 'idle')!.rate).toBeCloseTo(1, 6);
+    // Pulling away at idle speed: the idle loop of the engine under load.
+    expect(playing(recordedMix(800, 0.95, 800, POINTS))).toEqual(['heavy-idle']);
   });
 
   it('crossfades the two loops either side of the revs, each matched to the engine speed', () => {
-    const mix = recordedMix(1900, 0.1, 719, POINTS);
-    expect(playing(mix)).toEqual(['light-1600', 'light-2200']);
-    expect(mix.find((l) => l.name === 'light-1600')!.rate).toBeCloseTo(1900 / 1600, 6);
-    expect(mix.find((l) => l.name === 'light-2200')!.rate).toBeCloseTo(1900 / 2200, 6);
+    const mix = recordedMix(1900, 0.1, 800, POINTS);
+    expect(playing(mix)).toEqual(['light-1500', 'light-2100']);
+    expect(mix.find((l) => l.name === 'light-1500')!.rate).toBeCloseTo(1900 / 1500, 6);
+    expect(mix.find((l) => l.name === 'light-2100')!.rate).toBeCloseTo(1900 / 2100, 6);
   });
 
   it('keeps a steady level through every speed and load', () => {
-    for (const rpm of [500, 719, 900, 1350, 2600, 4200, 4800]) {
-      for (const load of [0, 0.3, 0.5, 0.9]) expect(level(recordedMix(rpm, load, 719, POINTS))).toBeCloseTo(1, 6);
+    for (const rpm of [500, 800, 900, 1350, 2600, 4200, 4800]) {
+      for (const load of [0, 0.3, 0.5, 0.9]) expect(level(recordedMix(rpm, load, 800, POINTS))).toBeCloseTo(1, 6);
     }
   });
 
   it('moves to the loops recorded under load as the engine works harder', () => {
-    const light = recordedMix(2200, 0.1, 719, POINTS);
-    const heavy = recordedMix(2200, 0.95, 719, POINTS);
-    expect(playing(light)).toEqual(['light-2200']);
-    expect(playing(heavy)).toEqual(['heavy-2200']);
+    const light = recordedMix(2100, 0.1, 800, POINTS);
+    const heavy = recordedMix(2100, 0.95, 800, POINTS);
+    expect(playing(light)).toEqual(['light-2100']);
+    expect(playing(heavy)).toEqual(['heavy-2100']);
     // Never sped up or slowed down by more than the gap between two loops.
     for (const rpm of [1000, 1500, 2500, 3500, 4400]) {
-      for (const l of recordedMix(rpm, 0.5, 719, POINTS).filter((x) => x.gain > 0)) {
+      for (const l of recordedMix(rpm, 0.5, 800, POINTS).filter((x) => x.gain > 0)) {
         expect(l.rate).toBeGreaterThan(0.6);
         expect(l.rate).toBeLessThan(1.6);
       }

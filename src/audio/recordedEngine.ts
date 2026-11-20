@@ -1,17 +1,28 @@
 /**
- * The engine from real recordings of a four-cylinder diesel (see
- * public/sounds/engine/CREDITS.md): a real idle loop, loops of real
- * combustion strokes laid down at higher speeds (light and under load), the
- * real starter cranking, the real moment the engine catches, and the strokes
- * slowing to a stop for switch-off. Loaded after the first touch; until then
- * (or if loading fails) the synthesized engine plays instead.
+ * The engine from a real recording of a four-cylinder diesel car (see
+ * public/sounds/engine/CREDITS.md): the real starter, the real first
+ * firings and flare, the real idle, loops of its real combustion strokes
+ * laid down at other speeds (light and under load), and the real
+ * switch-off. Loaded after the first touch; until then (or if loading
+ * fails) the synthesized engine plays instead.
  */
 import { recordedMix } from './soundModel';
 
 interface Meta {
   idleRpm: number;
   points: number[];
+  /** Seconds into crank.wav looped while the starter keeps turning. */
+  crankLoop: [number, number];
+  /** Seconds after catch.wav starts over which the loops fade in under it. */
+  catchHandover: [number, number];
 }
+
+/**
+ * Loudness of the one-shots (starter, catch, switch-off). They are cut from
+ * the recording at its own levels relative to the idle loop, so they play
+ * at the level the game gives the idling engine.
+ */
+const SHOT_LEVEL = 0.34;
 
 type Layer = { source: AudioBufferSourceNode; gain: GainNode };
 
@@ -19,6 +30,7 @@ const BASE = 'sounds/engine/';
 
 export class RecordedEngine {
   private layers = new Map<string, Layer>();
+  private crankBuf: AudioBuffer | null = null;
   private crank: Layer | null = null;
   private shots: Record<string, AudioBuffer> = {};
   private meta: Meta | null = null;
@@ -52,11 +64,11 @@ export class RecordedEngine {
         if (!res.ok) throw new Error(`${name}: ${res.status}`);
         return this.ctx.decodeAudioData(await res.arrayBuffer());
       };
-      const names = ['idle', ...meta.points.map((p) => `light-${p}`), ...meta.points.map((p) => `heavy-${p}`)];
+      const names = ['idle', ...meta.points.map((p) => `light-${p}`), 'heavy-idle', ...meta.points.map((p) => `heavy-${p}`)];
       const buffers = await Promise.all(names.map(decode));
       const [crank, catchBuf, stop] = await Promise.all(['crank', 'catch', 'stop'].map(decode));
       names.forEach((name, i) => this.layers.set(name, this.loop(buffers[i]!, this.bus)));
-      this.crank = this.loop(crank!, this.out);
+      this.crankBuf = crank!;
       this.shots = { catch: catchBuf!, stop: stop! };
       this.meta = meta;
       return true;
@@ -88,6 +100,32 @@ export class RecordedEngine {
     src.start();
   }
 
+  /** The starter from its first turn; if it keeps cranking, it goes on round the compression strokes. */
+  private startCranking(): void {
+    const buf = this.crankBuf;
+    const meta = this.meta;
+    if (!buf || !meta) return;
+    const source = this.ctx.createBufferSource();
+    source.buffer = buf;
+    source.loop = true;
+    [source.loopStart, source.loopEnd] = meta.crankLoop;
+    const gain = this.ctx.createGain();
+    gain.gain.value = SHOT_LEVEL;
+    source.connect(gain).connect(this.out);
+    source.start();
+    this.crank = { source, gain };
+  }
+
+  private stopCranking(): void {
+    const c = this.crank;
+    if (!c) return;
+    const now = this.ctx.currentTime;
+    c.gain.gain.cancelScheduledValues(now);
+    c.gain.gain.setTargetAtTime(0, now, 0.012);
+    c.source.stop(now + 0.1);
+    this.crank = null;
+  }
+
   /**
    * Follow the engine.
    * @param level overall loudness of the running engine, 0..1 (it grows with revs and load)
@@ -97,16 +135,18 @@ export class RecordedEngine {
     if (!meta) return;
     const now = this.ctx.currentTime;
     if (running && !this.wasRunning) {
-      // It fires: the recording of this very moment, with the loops fading in under its tail.
-      // (The recording starts with the last turns of the starter, so the loops wait for its firing to begin.)
-      this.play('catch', 0.85);
+      // It fires: the recording of this very moment (first firings, the flare,
+      // settling), with the loops fading in under its tail.
+      this.stopCranking();
+      this.play('catch', SHOT_LEVEL);
+      const [from, to] = meta.catchHandover;
       this.bus.gain.cancelScheduledValues(now);
       this.bus.gain.setValueAtTime(0, now);
-      this.bus.gain.setValueAtTime(0, now + 1.4);
-      this.bus.gain.linearRampToValueAtTime(1, now + 2.3);
+      this.bus.gain.setValueAtTime(0, now + from);
+      this.bus.gain.linearRampToValueAtTime(1, now + to);
     } else if (!running && this.wasRunning) {
       // Switched off or stalled: the strokes slow to a stop.
-      this.play('stop', 0.5);
+      this.play('stop', SHOT_LEVEL);
       this.bus.gain.cancelScheduledValues(now);
       this.bus.gain.setTargetAtTime(0, now, 0.03);
     }
@@ -118,12 +158,14 @@ export class RecordedEngine {
       layer.source.playbackRate.setTargetAtTime(Math.max(0.05, l.rate), now, 0.02);
       layer.gain.gain.setTargetAtTime(running ? l.gain * level : 0, now, 0.04);
     }
-    this.crank?.gain.gain.setTargetAtTime(cranking && !running ? 0.9 : 0, now, 0.03);
+    const turning = cranking && !running;
+    if (turning && !this.crank) this.startCranking();
+    else if (!turning && this.crank) this.stopCranking();
   }
 
   quiet(): void {
     const now = this.ctx.currentTime;
     for (const l of this.layers.values()) l.gain.gain.setTargetAtTime(0, now, 0.05);
-    this.crank?.gain.gain.setTargetAtTime(0, now, 0.05);
+    this.stopCranking();
   }
 }

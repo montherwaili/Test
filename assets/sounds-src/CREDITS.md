@@ -1,18 +1,15 @@
-# Engine recordings
+# Engine recording
 
-The engine sounds in `public/sounds/engine/` are made from these two
-recordings of an FSR Tarpan 239 D van (a four-cylinder diesel), by
-`npm run sounds` (`scripts/sounds/build.test.ts`): background noise taken
-out, cut, looped, and the combustion strokes re-assembled at other engine
-speeds.
+The engine sounds in `public/sounds/engine/` are made from this recording
+by `npm run sounds` (`scripts/sounds/build.test.ts`): cut, looped, and its
+combustion strokes re-assembled at other engine speeds.
 
 | File | Source |
 | --- | --- |
-| `WWS_FSRTarpan239Dvanstarting.ogg` | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:WWS_FSRTarpan239Dvanstarting.ogg) |
-| `WWS_FSRTarpan239Dvandriving.ogg` | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:WWS_FSRTarpan239Dvandriving.ogg) |
+| `BigSoundBank-0967-Kia-Carnival-diesel.flac` | ["Big diesel engine", BigSoundBank #967](https://bigsoundbank.com/big-diesel-engine-s0967.html) |
 
-Recorded by Monika Widzicka at the National Museum of Agriculture and
-Agricultural-Food Industry in Szreniawa, Poland, for **Work With Sounds** /
-Museum of Municipal Engineering. Licensed under
-[Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
-The sounds built from them are shared under the same licence.
+"Start and extinction of a Kia Carnival diesel engine 2,9 liter", recorded
+by Joseph Sardin (Tascam DR-40 + Sennheiser ME66), released under
+[CC0 1.0 (public-domain dedication)](https://creativecommons.org/publicdomain/zero/1.0/)
+by BigSoundBank. No attribution is required; it is given here with thanks.
+The sounds built from it are likewise CC0.

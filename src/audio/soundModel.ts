@@ -106,8 +106,8 @@ export interface LayerLevel {
 }
 
 /**
- * The recorded engine's mix. Light-load loops run from the real idle up
- * through loops built at `points` rpm; heavy-load loops at the same points.
+ * The recorded engine's mix. Light-load loops run from the idle up through
+ * loops at `points` rpm; heavy-load loops likewise, from their own idle loop.
  * The two loops either side of the engine speed play, sped up or slowed to
  * match it and crossfaded at equal power; load blends light into heavy.
  * Every layer is returned, the ones not needed at gain 0.
@@ -131,6 +131,6 @@ export function recordedMix(rpm: number, load: number, idleRpm: number, points: 
   };
   return [
     ...ladder(['idle', ...points.map((p) => `light-${p}`)], [idleRpm, ...points], lightShare),
-    ...ladder(points.map((p) => `heavy-${p}`), [...points], heavyShare),
+    ...ladder(['heavy-idle', ...points.map((p) => `heavy-${p}`)], [idleRpm, ...points], heavyShare),
   ];
 }

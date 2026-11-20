@@ -190,26 +190,28 @@ The car is a small **turbodiesel** with a manual gearbox: about 1.4 litres,
 diesel's pull at low revs, so it is forgiving when moving off, and it cranks
 for a moment before it catches. The numbers are in `src/data/tuning.json`.
 
-**The engine is real recordings** of a four-cylinder diesel van (FSR Tarpan
-239 D; credits and licence, CC BY 4.0, in `assets/sounds-src/CREDITS.md`):
+**The engine is a real recording** of a four-cylinder diesel car, a Kia
+Carnival 2.9 CRDi, started from cold, idling and switched off (by Joseph
+Sardin, BigSoundBank, CC0 public domain; see `assets/sounds-src/CREDITS.md`):
 
-- the real starter cranking, loops for as long as the key is held, then the
-  real moment the engine catches
-- the real idle (about 720 rpm in the recording)
-- above idle, the real combustion strokes re-assembled at the engine's speed:
-  a recording simply played faster sounds like a toy, because the ring of the
-  block and exhaust goes up with it; laying the strokes down closer together
-  raises the beat and keeps the timbre. Loops are made this way at six speeds
-  from 1100 to 4600 rpm, from the idle (light load) and from the van pulling
-  past (under load), and blended by revs and load
-  (`src/audio/granular.ts`, `src/audio/recordedEngine.ts`)
-- switching off or stalling: the strokes slowing to a stop
+- the real starter from its first turn (three compression strokes in about
+  0.6 s), looping round the compression strokes if the key is held longer,
+  then the real first firings and the flare to fast idle
+- the real idle (about 990 rpm in the recording: the engine is cold)
+- at the game's idle and above, the real combustion strokes re-assembled at
+  the engine's speed: a recording simply played faster sounds like a toy,
+  because the ring of the block and exhaust goes up with it; laying the
+  strokes down closer together raises the beat and keeps the timbre. Loops
+  are made this way at the game's idle and from 1500 to 4400 rpm, blended by
+  revs (`src/audio/granular.ts`, `src/audio/recordedEngine.ts`)
+- under load, the same strokes driven harder (louder and harsher): the
+  recording has no driving in it, so this part is processed, not recorded
+- switching off or stalling: the real run-down
 
-`npm run sounds` rebuilds these from the original recordings in
-`assets/sounds-src/` (it needs ffmpeg): it takes out the museum hall's
-background noise, cuts and lines up the strokes and writes
-`public/sounds/engine/`. If the files cannot be loaded, a synthesized diesel
-(`src/audio/dieselSynth.ts`) plays instead.
+`npm run sounds` rebuilds these from the original recording in
+`assets/sounds-src/` (it needs ffmpeg): it cuts and lines up the strokes and
+writes `public/sounds/engine/`. If the files cannot be loaded, a synthesized
+diesel (`src/audio/dieselSynth.ts`) plays instead.
 
 The smaller sounds are synthesized: the handbrake ratchet, the gear lever,
 the seatbelt buckle, the indicator relay, the ignition key, the horn, tyre
