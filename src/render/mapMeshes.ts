@@ -35,6 +35,7 @@ import {
   type MarkingColor,
   type SolidDef,
 } from '../world/map';
+import { datePalm, streetLamp } from './props';
 import { asphaltDetail, facadeDetail, sandDetail } from './surfaceDetail';
 import type { SignalState } from '../world/roads/signals';
 import { signTexture, signTextureKey } from './signs';
@@ -203,7 +204,7 @@ class PaintBatch {
         const painting = !dash || inPeriod < dash[0];
         const untilChange = dash ? (painting ? dash[0] - inPeriod : period - inPeriod) : Infinity;
         // Never less than a millimetre: a dash boundary landing a rounding error away must not stall the walk.
-        const step = Math.max(1e-3, Math.min(len - s, untilChange, 4));
+        const step = Math.max(1e-3, Math.min(len - s, untilChange, 10));
         if (painting) {
           const t0 = s / len;
           const t1 = (s + step) / len;
@@ -252,6 +253,27 @@ function hillGeometry(width: number, ramp: number, plateau: number, rise: number
   return g;
 }
 
+/** A thin wall seen from both sides and above: its two faces and its top (the ends hardly show). Feet at y = 0. */
+function wallGeometry(sx: number, h: number, sz: number): BufferGeometry {
+  const alongX = sx >= sz;
+  const len = alongX ? sx : sz;
+  const t = alongX ? sz : sx;
+  const parts: BufferGeometry[] = [];
+  for (const side of [-1, 1]) {
+    const face = new PlaneGeometry(len, h);
+    face.rotateY(side < 0 ? Math.PI : 0);
+    face.translate(0, h / 2, (side * t) / 2);
+    parts.push(face);
+  }
+  const top = new PlaneGeometry(len, t);
+  top.rotateX(-Math.PI / 2);
+  top.translate(0, h, 0);
+  parts.push(top);
+  const g = mergeGeometries(parts, false);
+  if (!alongX) g.rotateY(Math.PI / 2);
+  return g;
+}
+
 function addBuilding(batch: Adder, s: Extract<SolidDef, { shape: 'box' }>, rnd: () => number): void {
   const [w, h, d] = s.size;
   const [x, , z] = s.center;
@@ -278,7 +300,7 @@ function addBuilding(batch: Adder, s: Extract<SolidDef, { shape: 'box' }>, rnd: 
     [w / 2 - 0.15, 0, 0.3, d],
     [-w / 2 + 0.15, 0, 0.3, d],
   ] as const) {
-    batch.add(new BoxGeometry(pw, 0.6, pd), wall, x + px, h + 0.3, z + pz);
+    batch.add(wallGeometry(pw, 0.6, pd), wall, x + px, h, z + pz);
   }
   // A door, and on some roofs a water tank and an air-conditioning unit, as on many Omani houses.
   const side = Math.floor(rnd() * 4);
@@ -288,24 +310,20 @@ function addBuilding(batch: Adder, s: Extract<SolidDef, { shape: 'box' }>, rnd: 
   if (rnd() < 0.6) {
     const tx = x + (rnd() - 0.5) * (w - 3);
     const tz = z + (rnd() - 0.5) * (d - 3);
-    batch.add(new CylinderGeometry(0.6, 0.6, 1.3, 10), 0xe9e6dc, tx, h + 0.65, tz);
+    batch.add(new CylinderGeometry(0.6, 0.6, 1.3, 7), 0xe9e6dc, tx, h + 0.65, tz);
   }
   if (rnd() < 0.7) {
     batch.add(new BoxGeometry(1.0, 0.7, 0.8), 0xc9ccce, x + (rnd() - 0.5) * (w - 2.5), h + 0.35, z + (rnd() - 0.5) * (d - 2.5));
   }
 }
 
-function addPalm(batch: Adder, x: number, z: number, height: number, radius: number): void {
-  batch.add(new CylinderGeometry(radius * 0.7, radius, height, 6), COLORS.trunk, x, height / 2, z);
-  // A crown of drooping fronds: two flattened cones.
-  const upper = new ConeGeometry(2.4, 1.1, 7);
-  batch.add(upper, COLORS.leaf, x, height + 0.3, z);
-  const lower = new ConeGeometry(3.0, 0.7, 7);
-  lower.rotateX(Math.PI);
-  batch.add(lower, COLORS.leaf, x, height - 0.1, z, 0.4);
+function addPalm(batch: Adder, x: number, z: number, height: number, radius: number, lite = false): void {
+  const seed = Math.round(x * 13.7 + z * 7.3);
+  for (const part of datePalm(height, radius, seed, lite)) batch.add(part.geometry, part.color, x, 0, z, (seed % 628) / 100);
 }
 
-export function buildMapMeshes(map: BuiltMap): MapMeshes {
+/** `lite`: simpler palms and fewer lamps, for phones. */
+export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   const root = new Group();
   const def = map.def;
   let seed = 7;
@@ -368,7 +386,11 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   for (const s of def.solids) {
     if (s.shape === 'box') {
       if (s.kind === 'building') addBuilding(solid, s, rnd);
-      else {
+      else if (s.kind === 'wall' && s.style !== undefined) {
+        // A house's boundary wall: rendered like the house, in plaster.
+        const wall = BUILDING_STYLES[s.style % BUILDING_STYLES.length]!;
+        solid.add(wallGeometry(s.size[0], s.size[1], s.size[2]), wall, s.center[0], 0, s.center[2], 0, [3, 0, 0, 0]);
+      } else {
         const color = s.kind === 'wall' ? COLORS.wall : COLORS.kerb;
         // Wide kerb boxes are pavements: paving slabs on top.
         const paved = s.kind !== 'wall' && Math.min(s.size[0], s.size[2]) >= 1.5;
@@ -383,7 +405,7 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
         );
       }
     } else if (s.shape === 'cylinder') {
-      if (s.kind === 'palm') addPalm(solid, s.center[0], s.center[2], s.height, s.radius);
+      if (s.kind === 'palm') addPalm(solid, s.center[0], s.center[2], s.height, s.radius, lite);
       else if (s.kind === 'island') {
         // The low outer ring is kerb stone; the taller middle is planted.
         const planted = s.height > 0.4;
@@ -391,7 +413,7 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
         if (planted) {
           for (let i = 0; i < 3; i++) {
             const a = (i / 3) * Math.PI * 2 + 0.5;
-            addPalm(solid, s.center[0] + Math.cos(a) * s.radius * 0.45, s.center[2] + Math.sin(a) * s.radius * 0.45, 6 + i * 0.8, 0.24);
+            addPalm(solid, s.center[0] + Math.cos(a) * s.radius * 0.45, s.center[2] + Math.sin(a) * s.radius * 0.45, 6 + i * 0.8, 0.24, lite);
           }
         }
       } else {
@@ -401,6 +423,42 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
       const g = new CylinderGeometry(s.radius, s.radius, s.width, 28, 1, false);
       g.rotateZ(Math.PI / 2);
       solid.add(g, COLORS.bump, s.center[0], s.height - s.radius, s.center[1], (-(s.headingDeg ?? 0) * Math.PI) / 180);
+    }
+  }
+
+  // Street lamps along the pavements, every 40 m, the arm reaching over the road.
+  const lampHeads: BufferGeometry[] = [];
+  const onRoad = (x: number, z: number) =>
+    def.roads.some((r) => {
+      const dx = r.to[0] - r.from[0];
+      const dz = r.to[1] - r.from[1];
+      const len = Math.hypot(dx, dz);
+      const along = ((x - r.from[0]) * dx + (z - r.from[1]) * dz) / len;
+      const across = Math.abs(((x - r.from[0]) * -dz + (z - r.from[1]) * dx) / len);
+      return along >= 0 && along <= len && across <= r.width / 2;
+    });
+  const lamp = streetLamp(7.5, 1.8);
+  for (const sd of def.solids) {
+    if (sd.shape !== 'box' || sd.kind !== 'kerb') continue;
+    const [sx, , sz] = sd.size;
+    const long = Math.max(sx, sz);
+    if (Math.min(sx, sz) < 1.5 || long < 30) continue;
+    const alongX = sx > sz;
+    const count = Math.floor(long / (lite ? 70 : 40));
+    for (let k = 0; k < count; k++) {
+      const t = (k + 0.5) / count - 0.5;
+      const x = sd.center[0] + (alongX ? t * long : 0);
+      const z = sd.center[2] + (alongX ? 0 : t * long);
+      // Which side is the road: the arm reaches that way.
+      const nx = alongX ? 0 : 1;
+      const nz = alongX ? 1 : 0;
+      const towards = onRoad(x + nx * 4, z + nz * 4) ? 1 : onRoad(x - nx * 4, z - nz * 4) ? -1 : 0;
+      if (towards === 0) continue;
+      const yaw = Math.atan2(-nz * towards, nx * towards);
+      solid.add(lamp.body.clone(), COLORS.metal, x, 0, z, yaw);
+      const head = lamp.lamp.clone();
+      head.applyMatrix4(new Matrix4().makeRotationY(yaw).setPosition(x, 0, z));
+      lampHeads.push(head);
     }
   }
 
@@ -506,6 +564,9 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
     }
   }
 
+  const lampGlass = new MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd9a0, emissiveIntensity: 0.05, roughness: 0.4 });
+  if (lampHeads.length > 0) root.add(new Mesh(mergeGeometries(lampHeads, false), lampGlass));
+
   // --- paint ------------------------------------------------------------------------
   const batches = new Map<MarkingColor, PaintBatch>();
   const batch = (c: MarkingColor) => {
@@ -550,6 +611,7 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
   }
   const setNight: MapMeshes['setNight'] = (night) => {
     for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.35 : 1);
+    lampGlass.emissiveIntensity = night ? 3 : 0.05;
   };
 
   // --- loose cones ----------------------------------------------------------------

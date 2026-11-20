@@ -243,7 +243,7 @@ export function facadeDetail(material: Material): void {
   diffuseColor.rgb *= 0.93 + 0.1 * even;
   // Pavements: photographed paving slabs on top.
   if (vDetail.x > 1.5 && vDNormal.y > 0.5) diffuseColor.rgb *= mix(1.0, texture2D(dPaving, vDWorld.xz / 1.8).r / 0.463, 0.8);
-  if (vDetail.x > 0.5 && abs(vDNormal.y) < 0.5) {
+  if (vDetail.x > 0.5 && vDetail.x < 1.5 && abs(vDNormal.y) < 0.5) {
     float along = abs(vDNormal.x) > 0.5 ? vDWorld.z : vDWorld.x;
     float u = along - vDetail.y;
     float len = vDetail.z;
@@ -282,7 +282,7 @@ export function facadeDetail(material: Material): void {
         `#include <normal_fragment_maps>
 {
   vec3 n0 = normalize(vDNormal);
-  if (vDetail.x > 0.5 && vDetail.x < 1.5 && abs(n0.y) < 0.5) {
+  if (((vDetail.x > 0.5 && vDetail.x < 1.5) || vDetail.x > 2.5) && abs(n0.y) < 0.5) {
     // Rendered plaster on the walls (2.5 m to a picture).
     bool alongZ = abs(n0.x) > 0.5;
     vec2 uv = vec2(alongZ ? vDWorld.z : vDWorld.x, vDWorld.y) / 2.5;

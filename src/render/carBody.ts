@@ -105,7 +105,8 @@ export interface BodyParts {
   trim: BufferGeometry;
 }
 
-export function sedanBody(b: BodySize): BodyParts {
+/** `detail`: 1 for the player's car, lower for the many traffic cars (fewer sections round and along). */
+export function sedanBody(b: BodySize, detail = 1): BodyParts {
   const L = b.rear - b.front;
   const hw = b.width / 2;
   const z = (u: number) => b.front + u * L;
@@ -113,7 +114,8 @@ export function sedanBody(b: BodySize): BodyParts {
 
   // --- lower body ---
   const lower: Section[] = [];
-  const N = 72;
+  const N = Math.max(16, Math.round(72 * detail));
+  const ring = Math.max(12, Math.round(28 * detail));
   for (let i = 0; i <= N; i++) {
     const u = i / N;
     const zz = z(u);
@@ -146,15 +148,17 @@ export function sedanBody(b: BodySize): BodyParts {
   const roofAt = (u: number) =>
     b.belt + (b.roof - b.belt) * Math.max(0.03, keyed([[0.31, 0], [0.47, 1], [0.66, 1], [0.8, 0]], u));
   const glass: Section[] = [];
-  for (let i = 0; i <= 40; i++) {
-    const u = 0.31 + (0.49 * i) / 40;
+  const G = Math.max(8, Math.round(40 * detail));
+  for (let i = 0; i <= G; i++) {
+    const u = 0.31 + (0.49 * i) / G;
     glass.push({ z: z(u), y0: b.belt - 0.03, y1: roofAt(u), hw0: hw * 0.92, hw1: hw * 0.78 });
   }
 
   // --- roof: a thin painted shell over the top of the glass ---
   const roof: Section[] = [];
-  for (let i = 0; i <= 20; i++) {
-    const u = 0.455 + (0.215 * i) / 20;
+  const R = Math.max(5, Math.round(20 * detail));
+  for (let i = 0; i <= R; i++) {
+    const u = 0.455 + (0.215 * i) / R;
     const top = roofAt(u) + 0.008;
     roof.push({ z: z(u), y0: top - 0.07, y1: top, hw0: hw * 0.8, hw1: hw * 0.78 });
   }
@@ -171,14 +175,14 @@ export function sedanBody(b: BodySize): BodyParts {
   }
 
   return {
-    paint: mergeGeometries([loft(lower), loft(roof, 28, 7)], false),
-    glass: loft(glass, 28, 6),
+    paint: mergeGeometries([loft(lower, ring), loft(roof, ring, 7)], false),
+    glass: loft(glass, ring, 6),
     trim: mergeGeometries(trimParts.map((g) => g.toNonIndexed()), false),
   };
 }
 
 /** A tyre with a rounded shoulder, rolling about X. */
-export function tyreGeometry(radius: number, width: number): BufferGeometry {
+export function tyreGeometry(radius: number, width: number, segments = 28): BufferGeometry {
   const r = radius;
   const h = width / 2;
   const pts = [
@@ -191,7 +195,7 @@ export function tyreGeometry(radius: number, width: number): BufferGeometry {
     new Vector2(r * 0.92, h),
     new Vector2(r * 0.66, h),
   ];
-  const g = new LatheGeometry(pts, 28);
+  const g = new LatheGeometry(pts, segments);
   g.rotateZ(Math.PI / 2);
   return g;
 }

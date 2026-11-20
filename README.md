@@ -375,6 +375,17 @@ handbrake between the thumbs. The clutch pedal has a scale beside it (where it b
 where it is down far enough to change gear) and says where it is in words;
 with the automatic clutch or gearbox it is not shown at all.
 
+**Streets**: date palms with ringed trunks and arching fronds, boundary
+walls round the houses (with gates, and solid: hitting one is a crash),
+street lamps along the pavements that light at night, and people in
+dishdashas and abayas with ghutras and shaylas (`src/render/props.ts`). On
+the phone setting the palms are simpler and the lamps further apart, and
+traffic cars use a lighter version of the same body.
+
+**Home screen**: the sections down the side (lessons, free drive, practice
+with the examiner, the test, settings) and their contents beside them; the
+maps as tiles drawn from their roads.
+
 **Interface**: IBM Plex Sans Arabic (SIL Open Font License), graphite glass
 and one amber accent; a rev-counter gauge round the speed; warning lamps
 with the symbols of a real dashboard; on touch screens, ribbed rubber pedals

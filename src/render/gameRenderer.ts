@@ -50,12 +50,14 @@ export interface RenderQuality {
   mirrorHeight: number;
   /** How far the view reaches at most, m (fog closes in before it). */
   viewDistance: number;
+  /** Simpler palms and fewer lamps (phones). */
+  lite: boolean;
 }
 
 export const QUALITY_PRESETS: Record<'low' | 'medium' | 'high', RenderQuality> = {
-  low: { pixelRatio: 1, antialias: false, shadows: false, shadowMapSize: 0, mirrorsPerFrame: 1, mirrorHeight: 64, viewDistance: 650 },
-  medium: { pixelRatio: 1.5, antialias: true, shadows: true, shadowMapSize: 1024, mirrorsPerFrame: 1, mirrorHeight: 96, viewDistance: 1000 },
-  high: { pixelRatio: 2, antialias: true, shadows: true, shadowMapSize: 2048, mirrorsPerFrame: 3, mirrorHeight: 160, viewDistance: 1600 },
+  low: { pixelRatio: 1, antialias: false, shadows: false, shadowMapSize: 0, mirrorsPerFrame: 1, mirrorHeight: 64, viewDistance: 600, lite: true },
+  medium: { pixelRatio: 1.5, antialias: true, shadows: true, shadowMapSize: 1024, mirrorsPerFrame: 1, mirrorHeight: 96, viewDistance: 1000, lite: false },
+  high: { pixelRatio: 2, antialias: true, shadows: true, shadowMapSize: 2048, mirrorsPerFrame: 3, mirrorHeight: 160, viewDistance: 1600, lite: false },
 };
 
 /** Everything the renderer needs to know about the car this frame. */
@@ -158,7 +160,7 @@ export class GameRenderer {
     this.scene.add(this.sun, this.sun.target);
 
     loadDetailMaps(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
-    this.map = buildMapMeshes(builtMap);
+    this.map = buildMapMeshes(builtMap, quality.lite);
     this.scene.add(this.map.root);
 
     this.car = createCarModel(tuning);

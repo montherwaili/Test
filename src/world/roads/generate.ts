@@ -101,7 +101,7 @@ export interface Paint {
 }
 
 export type Raised =
-  | { type: 'box'; kind: 'kerb' | 'building'; center: P2; size: [number, number, number]; style?: number }
+  | { type: 'box'; kind: 'kerb' | 'building' | 'wall'; center: P2; size: [number, number, number]; style?: number }
   | { type: 'cylinder'; kind: 'kerb' | 'palm'; center: P2; radius: number; height: number };
 
 export interface HillOnRoad {
@@ -181,6 +181,10 @@ const SIGNAL_AMBER = 3;
 const SIGNAL_ALL_RED = 2;
 const BAY_WIDTH = 2.6;
 const BAY_DEPTH = 5.5;
+/** Boundary walls round house plots, m. */
+const WALL_HEIGHT = 1.9;
+const WALL_THICK = 0.25;
+const GATE_WIDTH = 4;
 
 interface RingSpec {
   island: number;
@@ -871,13 +875,35 @@ export function generateTown(def: TownDef): TownLayout {
           const wide = 10 + rnd() * 8;
           const deep = 10 + rnd() * 8;
           const tall = 4 + Math.floor(rnd() * 3) * 3.2;
+          const style = Math.floor(rnd() * 4);
           raised.push({
             type: 'box',
             kind: 'building',
             center: { x: x + (rnd() - 0.5) * 4, z: z + (rnd() - 0.5) * 4 },
             size: [wide, tall, deep],
-            style: Math.floor(rnd() * 4),
+            style,
           });
+          // A boundary wall round the plot, as round most Omani houses, with a gate
+          // on the side nearest the edge of the block (where the street is).
+          const gateSide = [x - b.x0, b.x1 - x, z - b.z0, b.z1 - z].reduce((best, d, i, all) => (d < all[best]! ? i : best), 0);
+          const half = plot / 2 - 0.4;
+          const h = WALL_HEIGHT;
+          const side = (cx: number, cz: number, along: 'x' | 'z', length: number, gate: boolean) => {
+            const piece = (offset: number, len: number) => {
+              const c = along === 'x' ? { x: cx + offset, z: cz } : { x: cx, z: cz + offset };
+              raised.push({ type: 'box', kind: 'wall', center: c, size: along === 'x' ? [len, h, WALL_THICK] : [WALL_THICK, h, len], style });
+            };
+            if (!gate) piece(0, length);
+            else {
+              const part = (length - GATE_WIDTH) / 2;
+              piece(-(GATE_WIDTH + part) / 2, part);
+              piece((GATE_WIDTH + part) / 2, part);
+            }
+          };
+          side(x - half, z, 'z', 2 * half, gateSide === 0);
+          side(x + half, z, 'z', 2 * half, gateSide === 1);
+          side(x, z - half, 'x', 2 * half, gateSide === 2);
+          side(x, z + half, 'x', 2 * half, gateSide === 3);
         } else if (roll < b.density + 0.25) {
           raised.push({ type: 'cylinder', kind: 'palm', center: { x: x + (rnd() - 0.5) * 12, z: z + (rnd() - 0.5) * 12 }, radius: 0.22, height: 5 + rnd() * 3 });
         }

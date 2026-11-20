@@ -7,8 +7,7 @@ import {
   BoxGeometry,
   BufferAttribute,
   Color,
-  ConeGeometry,
-  CylinderGeometry,
+  DoubleSide,
   DynamicDrawUsage,
   Euler,
   Group,
@@ -17,7 +16,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
-  SphereGeometry,
   Vector3,
   type BufferGeometry,
 } from 'three';
@@ -25,6 +23,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
 import { sedanBody, tyreGeometry } from './carBody';
+import { headwearGeometry, robeGeometry, skinGeometry } from './props';
 
 /** Paint colours for traffic cars (white and silver are the most common, as on Omani roads). */
 const CAR_COLORS = [0xf2f2ee, 0xc9ccd1, 0xf2f2ee, 0x8d9299, 0x2f3338, 0xb23a2e, 0x2f5d8a, 0xc9b58a];
@@ -60,13 +59,13 @@ function carGeometry(length: number, width: number): BufferGeometry {
     axles: [-length * 0.31, length * 0.3],
     wheelY: 0.3,
     wheelRadius: 0.3,
-  });
+  }, 0.3);
   const parts: BufferGeometry[] = [
     tinted(body.paint, 0xffffff, 0, 0, 0),
     tinted(body.glass, 0x111519, 0, 0, 0),
     tinted(body.trim, 0x151618, 0, 0, 0),
   ];
-  const wheel = tyreGeometry(0.3, 0.2);
+  const wheel = tyreGeometry(0.3, 0.2, 10);
   for (const sx of [-1, 1]) {
     for (const z of [-length * 0.31, length * 0.3]) {
       parts.push(tinted(wheel.clone(), 0x151515, sx * (width / 2 - 0.1), 0.3, z));
@@ -100,6 +99,7 @@ export class TrafficMeshes {
   private readonly right: InstancedMesh;
   private readonly robes: InstancedMesh;
   private readonly heads: InstancedMesh;
+  private readonly skin: InstancedMesh;
   private readonly m = new Matrix4();
   private readonly q = new Quaternion();
   private readonly e = new Euler(0, 0, 0, 'YXZ');
@@ -136,17 +136,12 @@ export class TrafficMeshes {
     cars.forEach((car, i) => this.bodies.setColorAt(i, c.set(CAR_COLORS[car.color % CAR_COLORS.length]!)));
     this.bodies.instanceColor!.needsUpdate = true;
 
-    // People: a robe with a head on top, and a cap or scarf.
+    // People: a long robe with arms, a face and hands, and a cap-and-scarf or headscarf.
     const pc = Math.max(1, people.length);
-    const robe = new CylinderGeometry(0.2, 0.3, 1.42, 8);
-    robe.translate(0, 0.71, 0);
-    this.robes = new InstancedMesh(robe, new MeshStandardMaterial({ roughness: 0.9, flatShading: true }), pc);
-    const head = mergeGeometries(
-      [tinted(new SphereGeometry(0.13, 8, 6), 0xc99a6b, 0, 1.56, 0), tinted(new ConeGeometry(0.15, 0.14, 8), 0xffffff, 0, 1.7, 0)],
-      false,
-    );
-    this.heads = new InstancedMesh(head, new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }), pc);
-    for (const mesh of [this.robes, this.heads]) {
+    this.robes = new InstancedMesh(robeGeometry(), new MeshStandardMaterial({ roughness: 0.85 }), pc);
+    this.skin = new InstancedMesh(skinGeometry(), new MeshStandardMaterial({ color: 0xb98a63, roughness: 0.7 }), pc);
+    this.heads = new InstancedMesh(headwearGeometry(), new MeshStandardMaterial({ roughness: 0.85, side: DoubleSide }), pc);
+    for (const mesh of [this.robes, this.skin, this.heads]) {
       mesh.count = people.length;
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       mesh.frustumCulled = false;
@@ -155,8 +150,8 @@ export class TrafficMeshes {
     }
     people.forEach((p, i) => {
       this.robes.setColorAt(i, c.set(ROBE_COLORS[p.style % ROBE_COLORS.length]!));
-      // Men: a pale cap over a bare face. Women: a dark headscarf.
-      this.heads.setColorAt(i, c.set(p.style < 2 ? 0xffffff : 0x55504c));
+      // Men in white dishdashas: a white ghutra. Women in black abayas: a black shayla.
+      this.heads.setColorAt(i, c.set(p.style < 2 ? 0xf7f6f0 : 0x1a1a1d));
     });
     if (this.robes.instanceColor) this.robes.instanceColor.needsUpdate = true;
     if (this.heads.instanceColor) this.heads.instanceColor.needsUpdate = true;
@@ -190,9 +185,11 @@ export class TrafficMeshes {
       this.q.setFromEuler(this.e);
       this.m.compose(this.v.set(p.x, bob, p.z), this.q, this.one);
       this.robes.setMatrixAt(i, this.m);
+      this.skin.setMatrixAt(i, this.m);
       this.heads.setMatrixAt(i, this.m);
     }
     this.robes.instanceMatrix.needsUpdate = true;
+    this.skin.instanceMatrix.needsUpdate = true;
     this.heads.instanceMatrix.needsUpdate = true;
   }
 }
