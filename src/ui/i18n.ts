@@ -211,6 +211,22 @@ const STRINGS = {
   setTiltRange: { ar: 'الإمالة اللازمة لأقصى توجيه', en: 'Tilt for full lock' },
   setTiltCentre: { ar: 'اجعل وضع الهاتف الحالي هو المستقيم', en: 'Set straight ahead to how I hold it now' },
   setPicture: { ar: 'الصورة', en: 'Picture' },
+  setGearbox: { ar: 'ناقل الحركة', en: 'Gearbox' },
+  gbManual: { ar: 'يدوي مع الكلتش', en: 'Manual with clutch' },
+  gbAutoClutch: { ar: 'يدوي، الكلتش تلقائي', en: 'Manual, automatic clutch' },
+  gbAutomatic: { ar: 'أوتوماتيك', en: 'Automatic' },
+  gbNote_manual: {
+    ar: 'كما في السيارة: اضغط الكلتش (Shift) ثم بدّل الغيار. الدروس تستعمل هذا دائماً.',
+    en: 'As in the car: press the clutch (Shift), then change gear. Lessons always use this.',
+  },
+  gbNote_autoClutch: {
+    ar: 'تبدّل الغيار بنفسك (E للأعلى، Q للأسفل) والكلتش يشتغل لحاله: يفصل ويوصل بنعومة ولا تطفي السيارة.',
+    en: 'You change gear (E up, Q down); the clutch works itself, smoothly, and the engine never stalls.',
+  },
+  gbNote_automatic: {
+    ar: 'اختر D (E) أو N أو R، والسيارة تبدّل الغيارات بنفسها.',
+    en: 'Choose D (E), N or R; the car changes gear by itself.',
+  },
   qAuto: { ar: 'تلقائي', en: 'Auto' },
   qLow: { ar: 'منخفضة', en: 'Low' },
   qMedium: { ar: 'متوسطة', en: 'Medium' },

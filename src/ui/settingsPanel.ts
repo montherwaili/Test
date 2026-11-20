@@ -126,6 +126,23 @@ export class SettingsPanel {
       centre.addEventListener('click', () => this.hooks.calibrateTilt());
     }
 
+    // --- gearbox ---
+    this.section('setGearbox');
+    const gbNote = el('p', 'settings-note', undefined, t(`gbNote_${s.gearbox}`));
+    this.choice<Settings['gearbox']>(
+      [
+        ['manual', 'gbManual'],
+        ['autoClutch', 'gbAutoClutch'],
+        ['automatic', 'gbAutomatic'],
+      ],
+      s.gearbox,
+      (v) => {
+        this.change('gearbox', v);
+        gbNote.textContent = t(`gbNote_${v}`);
+      },
+    );
+    this.body.append(gbNote);
+
     // --- picture ---
     this.section('setPicture');
     const reload = el('div', 'settings-row', undefined);

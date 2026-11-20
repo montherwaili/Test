@@ -1,4 +1,6 @@
 /** Player settings, saved in the browser. */
+import type { GearboxMode } from '../sim/driverAids';
+
 export type Quality = 'auto' | 'low' | 'medium' | 'high';
 export type Steering = 'wheel' | 'tilt';
 
@@ -13,6 +15,8 @@ export interface Settings {
   /** Tilt needed for full lock, degrees. */
   tiltRange: number;
   showFps: boolean;
+  /** Who works the clutch and the gears (lessons always use the manual gearbox). */
+  gearbox: GearboxMode;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   steering: 'wheel',
   tiltRange: 35,
   showFps: false,
+  gearbox: 'autoClutch',
 };
 
 const KEY = 'odts.settings';
@@ -39,6 +44,7 @@ export function parseSettings(input: unknown): Settings {
   if (r['steering'] === 'wheel' || r['steering'] === 'tilt') s.steering = r['steering'];
   if (typeof r['tiltRange'] === 'number' && r['tiltRange'] >= 10 && r['tiltRange'] <= 80) s.tiltRange = r['tiltRange'];
   if (typeof r['showFps'] === 'boolean') s.showFps = r['showFps'];
+  if (r['gearbox'] === 'manual' || r['gearbox'] === 'autoClutch' || r['gearbox'] === 'automatic') s.gearbox = r['gearbox'];
   return s;
 }
 

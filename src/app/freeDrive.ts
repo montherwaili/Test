@@ -39,6 +39,7 @@ import {
 } from '../render/gameRenderer';
 import { Ancillaries } from '../sim/ancillaries';
 import { FixedStepper } from '../sim/fixedStep';
+import { GearboxAssist, type GearboxMode } from '../sim/driverAids';
 import { GEAR_NEUTRAL, GEAR_REVERSE, gearLabel } from '../sim/gearbox';
 import { neutralControls } from '../sim/longitudinalCar';
 import { createDefaultTuning } from '../sim/tuning';
@@ -279,6 +280,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   const filter = new InputFilter();
 
   const controls: DriveControls = { ...neutralControls(), steer: 0, handbrake: 1 };
+  /** The gear the player has chosen; the gearbox help (if on) decides when it goes in. */
+  let selectedGear = GEAR_NEUTRAL;
   let starterAssistUntil = -1;
   let cameraIndex = 0;
   /** Seconds the car has been lying on its side or roof. */
@@ -286,6 +289,13 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   let wasOnBump = false;
 
   const settings: Settings = loadSettings();
+  // Lessons teach the clutch: they always have the plain manual gearbox.
+  const gearboxMode = (): GearboxMode => (lessonDef ? 'manual' : settings.gearbox);
+  const assist = new GearboxAssist(gearboxMode(), {
+    idleRpm: tuning.engine.idleRpm,
+    redlineRpm: tuning.engine.redlineRpm,
+    forwardGears: tuning.gearbox.forward.length,
+  });
   const renderer = new GameRenderer(canvas, map, tuning, pickQuality(settings.quality));
   // "Auto" quality: fewer pixels when the device cannot keep up (30 fps on a phone, 60 on a computer).
   const governor =
@@ -333,6 +343,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     filter.reset();
     touch.reset();
     controls.gear = GEAR_NEUTRAL;
+    selectedGear = GEAR_NEUTRAL;
     controls.handbrake = 1;
     vehicle.powertrain.state.gear = GEAR_NEUTRAL;
     Object.assign(prevPos, car.body.translation());
@@ -353,14 +364,15 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     const top = tuning.gearbox.forward.length;
     switch (a.type) {
       case 'gearUp':
-        controls.gear = Math.min(top, controls.gear + 1);
+        // In automatic, up from neutral is D; further up does nothing.
+        selectedGear = assist.mode === 'automatic' ? (selectedGear < 1 ? selectedGear + 1 : selectedGear) : Math.min(top, selectedGear + 1);
         break;
       case 'gearDown':
         // Down stops at neutral: reverse has to be chosen on purpose.
-        controls.gear = Math.max(GEAR_NEUTRAL, controls.gear - 1);
+        selectedGear = assist.mode === 'automatic' && selectedGear >= 1 ? GEAR_NEUTRAL : Math.max(GEAR_NEUTRAL, selectedGear - 1);
         break;
       case 'gear':
-        controls.gear = a.gear;
+        selectedGear = a.gear;
         break;
       case 'handbrake':
         controls.handbrake = controls.handbrake > 0 ? 0 : 1;
@@ -490,6 +502,11 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       if (key === 'tiltRange') tilt.range = s.tiltRange;
       if (key === 'steering' && s.steering === 'wheel') tilt.disable();
       if (key === 'showFps' && !s.showFps) hud.showFps(null);
+      if (key === 'gearbox') {
+        assist.mode = gearboxMode();
+        // Automatic has no numbered gears to hold: any forward gear becomes D.
+        if (assist.mode === 'automatic' && selectedGear > 1) selectedGear = 1;
+      }
     },
     enableTilt: () => tilt.enable(),
     calibrateTilt: () => tilt.calibrate(),
@@ -655,10 +672,22 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     if (kh.brake) analog.brake = undefined;
     if (kh.left || kh.right) analog.steer = undefined;
     filter.update(dt, digital, analog, roadSpeed, tuning.clutch);
-    controls.throttle = filter.throttle;
     controls.brake = filter.brake;
-    controls.clutch = filter.clutch;
     controls.steer = filter.steer;
+    // The gearbox help works the clutch (and, in automatic, the lever) between the player and the car.
+    const tmNow = vehicle.telemetry;
+    const aided = assist.step(dt, {
+      selected: selectedGear,
+      clutch: filter.clutch,
+      throttle: filter.throttle,
+      rpm: tmNow.rpm,
+      engaged: vehicle.powertrain.state.gear,
+      running: vehicle.powertrain.state.running,
+      speed: tmNow.wheelSpeed,
+    });
+    controls.throttle = aided.throttle;
+    controls.clutch = aided.clutch;
+    controls.gear = aided.gear;
     const running = vehicle.powertrain.state.running;
     controls.starter =
       keyboard.held.starter || touch.state.starter || (!running && vehicle.time < starterAssistUntil);
@@ -876,8 +905,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       speedKmh: tm.wheelSpeed * 3.6,
       rpm: tm.rpm,
       redlineRpm: tuning.engine.redlineRpm,
-      gear: gearLabel(gear),
-      gearPending: controls.gear !== gear,
+      gear: assist.mode === 'manual' ? gearLabel(gear) : assist.label(selectedGear, gear),
+      gearPending: selectedGear !== gear && assist.mode === 'manual',
       engineRunning: tm.running,
       ignition: controls.ignition,
       handbrake: controls.handbrake > 0,
@@ -893,7 +922,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       brake: controls.brake,
       clutch: controls.clutch,
       steer: controls.steer,
-      lever: controls.gear,
+      lever: selectedGear,
       engaged: gear,
       handbrake: controls.handbrake > 0,
       seatbelt: ancillaries.state.seatbelt,
