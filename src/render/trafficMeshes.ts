@@ -24,6 +24,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
+import { sedanBody, tyreGeometry } from './carBody';
 
 /** Paint colours for traffic cars (white and silver are the most common, as on Omani roads). */
 const CAR_COLORS = [0xf2f2ee, 0xc9ccd1, 0xf2f2ee, 0x8d9299, 0x2f3338, 0xb23a2e, 0x2f5d8a, 0xc9b58a];
@@ -47,26 +48,32 @@ function tinted(g: BufferGeometry, color: number, x: number, y: number, z: numbe
   return geo;
 }
 
-/** A car facing -Z with its wheels on y = 0. White body parts take the instance colour. */
+/** A car facing -Z with its wheels on y = 0: the same saloon as the player's. White parts take the instance colour. */
 function carGeometry(length: number, width: number): BufferGeometry {
-  const parts: BufferGeometry[] = [];
-  const cabin = new BoxGeometry(width * 0.9, 0.5, length * 0.5);
-  const pos = cabin.attributes['position']!;
-  for (let i = 0; i < pos.count; i++) {
-    if (pos.getY(i) > 0) {
-      pos.setX(i, pos.getX(i) * 0.84);
-      pos.setZ(i, pos.getZ(i) * 0.7);
+  const body = sedanBody({
+    front: -length / 2,
+    rear: length / 2,
+    width,
+    bottom: 0.17,
+    belt: 0.8,
+    roof: 1.42,
+    axles: [-length * 0.31, length * 0.3],
+    wheelY: 0.3,
+    wheelRadius: 0.3,
+  });
+  const parts: BufferGeometry[] = [
+    tinted(body.paint, 0xffffff, 0, 0, 0),
+    tinted(body.glass, 0x111519, 0, 0, 0),
+    tinted(body.trim, 0x151618, 0, 0, 0),
+  ];
+  const wheel = tyreGeometry(0.3, 0.2);
+  for (const sx of [-1, 1]) {
+    for (const z of [-length * 0.31, length * 0.3]) {
+      parts.push(tinted(wheel.clone(), 0x151515, sx * (width / 2 - 0.1), 0.3, z));
     }
   }
-  parts.push(tinted(new BoxGeometry(width, 0.6, length), 0xffffff, 0, 0.5, 0));
-  parts.push(tinted(cabin, 0x20262c, 0, 1.05, length * 0.05));
-  parts.push(tinted(new BoxGeometry(width * 0.74, 0.05, length * 0.34), 0xffffff, 0, 1.32, length * 0.05));
-  const wheel = new CylinderGeometry(0.3, 0.3, 0.2, 10);
-  wheel.rotateZ(Math.PI / 2);
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      parts.push(tinted(wheel.clone(), 0x151515, sx * (width / 2 - 0.08), 0.3, sz * length * 0.31));
-    }
+  for (const g of parts) {
+    g.deleteAttribute('normal');
   }
   const merged = mergeGeometries(parts, false);
   merged.computeVertexNormals();
@@ -109,7 +116,7 @@ export class TrafficMeshes {
 
     this.bodies = new InstancedMesh(
       carGeometry(length, width),
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.1, flatShading: true }),
+      new MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.15 }),
       count,
     );
     this.bodies.castShadow = true;

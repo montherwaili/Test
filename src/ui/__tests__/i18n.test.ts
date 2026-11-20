@@ -11,8 +11,8 @@ describe('interface text', () => {
 
   it('uses Arabic script for the Arabic text', () => {
     for (const key of allKeys()) {
-      // "language" is the one label shown in the *other* language on purpose.
-      if (key === 'language') continue;
+      // The language switch is labelled in the *other* language on purpose.
+      if (key === 'language' || key === 'languageShort') continue;
       expect(translation(key, 'ar'), key).toMatch(/[؀-ۿ]/);
     }
   });

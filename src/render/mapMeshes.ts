@@ -359,7 +359,17 @@ export function buildMapMeshes(map: BuiltMap): MapMeshes {
       if (s.kind === 'building') addBuilding(solid, s, rnd);
       else {
         const color = s.kind === 'wall' ? COLORS.wall : COLORS.kerb;
-        solid.add(new BoxGeometry(s.size[0], s.size[1], s.size[2]), color, s.center[0], s.center[1], s.center[2], ((s.yawDeg ?? 0) * Math.PI) / 180);
+        // Wide kerb boxes are pavements: paving slabs on top.
+        const paved = s.kind !== 'wall' && Math.min(s.size[0], s.size[2]) >= 1.5;
+        solid.add(
+          new BoxGeometry(s.size[0], s.size[1], s.size[2]),
+          color,
+          s.center[0],
+          s.center[1],
+          s.center[2],
+          ((s.yawDeg ?? 0) * Math.PI) / 180,
+          paved ? [2, 0, 0, 0] : undefined,
+        );
       }
     } else if (s.shape === 'cylinder') {
       if (s.kind === 'palm') addPalm(solid, s.center[0], s.center[2], s.height, s.radius);

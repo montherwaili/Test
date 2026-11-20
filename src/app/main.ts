@@ -1,4 +1,5 @@
 import '../ui/game.css';
+import '../ui/theme.css';
 import { initLang, t } from '../ui/i18n';
 import { startFreeDrive } from './freeDrive';
 

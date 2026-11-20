@@ -1,6 +1,7 @@
 /** Heads-up display: instruments, warning lamps, messages and the help panel. */
 import { KEY_HELP } from '../input/keyboard';
 import { getLang, onLangChange, setLang, t, type StringKey } from './i18n';
+import { icon, type IconName } from './icons';
 import { onPress } from './press';
 
 export interface HudState {
@@ -55,8 +56,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, pa
 export class Hud {
   readonly root: HTMLElement;
   private readonly speed: HTMLElement;
-  private readonly rpmFill: HTMLElement;
-  private readonly rpmRed: HTMLElement;
+  private rpmFill!: SVGPathElement;
+  private rpmRed!: SVGPathElement;
   private readonly rpmText: HTMLElement;
   private readonly gear: HTMLElement;
   private readonly limit: HTMLElement;
@@ -84,75 +85,78 @@ export class Hud {
   private readonly helpPanel: HTMLElement;
   private readonly fps: HTMLElement;
   private readonly labelled: [HTMLElement, StringKey][] = [];
+  /** Elements whose words are a tooltip (icons). */
+  private readonly titled: [HTMLElement, StringKey][] = [];
   private toastTimer = 0;
   private last = { speed: '', rpm: -1, gear: '', camera: '' as string, limit: '' };
 
   constructor(parent: HTMLElement, callbacks: HudCallbacks) {
     this.root = el('div', 'hud', parent);
 
-    // --- top bar ---------------------------------------------------------------
+    // --- top bar: icons, with the words as tooltips -----------------------------
     const top = el('div', 'topbar', this.root);
-    const menuButton = this.button(top, 'menu', callbacks.onMenu);
-    menuButton.classList.add('btn-menu');
-    const helpButton = this.button(top, 'help', () => this.toggleHelp());
-    helpButton.classList.add('btn-help');
-    this.cameraButton = el('button', 'hud-btn', top);
-    this.cameraButton.type = 'button';
-    onPress(this.cameraButton, callbacks.onCamera);
-    // "Camera: " is dropped on small screens, leaving just the view's name.
-    const cameraPrefix = el('span', 'cam-prefix', this.cameraButton);
-    this.label(cameraPrefix, 'camera');
-    this.cameraName = el('span', '', this.cameraButton);
-    this.button(top, 'reset', callbacks.onReset).classList.add('btn-reset');
+    const iconButton = (name: IconName, key: StringKey, onClick: () => void, className: string) => {
+      const b = el('button', `hud-btn icon-btn ${className}`, top);
+      b.type = 'button';
+      b.append(icon(name));
+      this.titled.push([b, key]);
+      onPress(b, onClick);
+      return b;
+    };
+    const menuButton = iconButton('menu', 'menu', callbacks.onMenu, 'btn-menu');
+    this.label(el('span', 'btn-text', menuButton), 'menu');
+    iconButton('help', 'help', () => this.toggleHelp(), 'btn-help');
+    this.cameraButton = iconButton('camera', 'camera', callbacks.onCamera, 'btn-camera');
+    this.cameraName = el('span', 'btn-text', this.cameraButton);
+    iconButton('reset', 'reset', callbacks.onReset, 'btn-reset');
     this.onReset = callbacks.onReset;
     const switchLang = () => setLang(getLang() === 'ar' ? 'en' : 'ar');
-    this.button(top, 'language', switchLang).classList.add('btn-lang');
+    const lang = el('button', 'hud-btn icon-btn btn-lang', top);
+    lang.type = 'button';
+    this.label(lang, 'languageShort');
+    this.titled.push([lang, 'language']);
+    onPress(lang, switchLang);
     this.switchLang = switchLang;
-    const gear = el('button', 'hud-btn btn-settings', top);
-    gear.type = 'button';
-    gear.textContent = '⚙';
-    gear.title = t('settings');
-    gear.setAttribute('aria-label', t('settings'));
-    onPress(gear, callbacks.onSettings);
+    iconButton('settings', 'settings', callbacks.onSettings, 'btn-settings');
     this.fps = el('div', 'fps', this.root);
     this.fps.dir = 'ltr';
     this.fps.hidden = true;
 
-    // --- instrument cluster ------------------------------------------------------
+    // --- instrument cluster: a rev counter round the speed, as in the car ---------
     const cluster = el('div', 'cluster', this.root);
     cluster.dir = 'ltr';
     this.arrowLeft = el('div', 'arrow arrow-left', cluster);
-    this.arrowLeft.textContent = '◀';
-    const dials = el('div', 'dials', cluster);
-    const rpm = el('div', 'rpm', dials);
-    const bar = el('div', 'rpm-bar', rpm);
-    this.rpmRed = el('div', 'rpm-red', bar);
-    this.rpmFill = el('div', 'rpm-fill', bar);
-    this.rpmText = el('div', 'rpm-text', rpm);
-    const row = el('div', 'speed-row', dials);
-    this.gear = el('div', 'gear', row);
+    this.arrowLeft.append(icon('arrowLeft'));
+    const gauge = el('div', 'gauge', cluster);
+    gauge.append(this.buildTach());
+    const centre = el('div', 'gauge-centre', gauge);
+    this.speed = el('div', 'speed', centre);
+    this.label(el('div', 'unit', centre), 'kmh');
+    this.rpmText = el('div', 'rpm-text', gauge);
+    const foot = el('div', 'gauge-foot', gauge);
+    this.gear = el('div', 'gear', foot);
     // The limit in force, drawn like the sign.
-    this.limit = el('div', 'limit', row);
+    this.limit = el('div', 'limit', foot);
     this.limit.hidden = true;
-    this.speed = el('div', 'speed', row);
-    this.label(el('div', 'unit', row), 'kmh');
-    const lamps = el('div', 'lamps', dials);
-    const lamp = (key: StringKey, className: string) => {
+    this.arrowRight = el('div', 'arrow arrow-right', cluster);
+    this.arrowRight.append(icon('arrowRight'));
+    // Warning lamps, with the symbols of a real dashboard; the words are tooltips.
+    const lamps = el('div', 'lamps', cluster);
+    const lamp = (name: IconName, key: StringKey, className: string) => {
       const l = el('span', `lamp ${className}`, lamps);
-      this.label(l, key);
+      l.append(icon(name));
+      this.titled.push([l, key]);
       return l;
     };
-    // Faults so far, by severity.
-    this.faultCount = el('div', 'fault-count', dials);
-    this.faultCount.hidden = true;
     this.lamps = {
-      engine: lamp('lampEngine', 'lamp-red'),
-      handbrake: lamp('lampHandbrake', 'lamp-red'),
-      seatbelt: lamp('lampSeatbelt', 'lamp-red'),
-      lights: lamp('lampLights', 'lamp-green'),
+      engine: lamp('engine', 'lampEngine', 'lamp-amber'),
+      handbrake: lamp('handbrake', 'lampHandbrake', 'lamp-red'),
+      seatbelt: lamp('seatbelt', 'lampSeatbelt', 'lamp-red'),
+      lights: lamp('lowBeam', 'lampLights', 'lamp-green'),
     };
-    this.arrowRight = el('div', 'arrow arrow-right', cluster);
-    this.arrowRight.textContent = '▶';
+    // Faults so far, by severity.
+    this.faultCount = el('div', 'fault-count', cluster);
+    this.faultCount.hidden = true;
 
     // Shown only while the car is on its side or roof.
     this.rightButton = el('button', 'hud-btn primary right-car', this.root);
@@ -196,10 +200,13 @@ export class Hud {
     }
     const rpm = Math.round(s.rpm / 50) * 50;
     if (rpm !== this.last.rpm) {
-      this.rpmFill.style.width = `${Math.min(100, (Math.abs(s.rpm) / MAX_RPM) * 100)}%`;
-      this.rpmFill.classList.toggle('high', s.rpm > s.redlineRpm - 500);
-      this.rpmText.textContent = `${rpm} ${t('rpm')}`;
-      this.rpmRed.style.left = `${(s.redlineRpm / MAX_RPM) * 100}%`;
+      const f = Math.min(1, Math.abs(s.rpm) / MAX_RPM);
+      this.rpmFill.style.strokeDashoffset = String(100 - f * 100);
+      this.rpmFill.classList.toggle('high', s.rpm > s.redlineRpm - 300);
+      this.rpmText.textContent = `${(Math.abs(rpm) / 1000).toFixed(1)} ×1000 ${t('rpm')}`;
+      const red = s.redlineRpm / MAX_RPM;
+      this.rpmRed.style.strokeDasharray = `${(1 - red) * 100} 100`;
+      this.rpmRed.style.strokeDashoffset = String(-red * 100);
       this.last.rpm = rpm;
     }
     const limit = s.speedLimit === null ? '' : String(s.speedLimit);
@@ -223,7 +230,9 @@ export class Hud {
     const lightsKey: StringKey = s.headlights === 'high' ? 'lampHighBeam' : 'lampLights';
     if (this.lamps.lights.dataset['key'] !== lightsKey) {
       this.lamps.lights.dataset['key'] = lightsKey;
-      this.lamps.lights.textContent = t(lightsKey);
+      this.lamps.lights.replaceChildren(icon(s.headlights === 'high' ? 'highBeam' : 'lowBeam'));
+      this.lamps.lights.classList.toggle('lamp-blue', s.headlights === 'high');
+      this.lamps.lights.title = t(lightsKey);
     }
     if (s.camera !== this.last.camera) {
       this.last.camera = s.camera;
@@ -379,6 +388,58 @@ export class Hud {
     return panel;
   }
 
+  /** The rev counter: an arc from 0 to 5000 rpm, red past the cut-off, with a tick every thousand. */
+  private buildTach(): SVGSVGElement {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 200 130');
+    svg.setAttribute('class', 'tach');
+    // 230° of arc, open at the bottom.
+    const cx = 100;
+    const cy = 100;
+    const r = 86;
+    const at = (f: number, rr = r) => {
+      const a = ((-205 + 230 * f) * Math.PI) / 180;
+      return [cx + rr * Math.cos(a), cy + rr * Math.sin(a)] as const;
+    };
+    const [x0, y0] = at(0);
+    const [x1, y1] = at(1);
+    const d = `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 1 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+    const arc = (className: string) => {
+      const p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('pathLength', '100');
+      p.setAttribute('class', className);
+      svg.append(p);
+      return p;
+    };
+    arc('tach-track');
+    this.rpmRed = arc('tach-red');
+    this.rpmFill = arc('tach-fill');
+    for (let k = 0; k <= 10; k++) {
+      const f = k / 10;
+      const [ax, ay] = at(f, r - 9);
+      const [bx, by] = at(f, k % 2 === 0 ? r - 17 : r - 13);
+      const tick = document.createElementNS(ns, 'line');
+      tick.setAttribute('x1', ax.toFixed(2));
+      tick.setAttribute('y1', ay.toFixed(2));
+      tick.setAttribute('x2', bx.toFixed(2));
+      tick.setAttribute('y2', by.toFixed(2));
+      tick.setAttribute('class', k % 2 === 0 ? 'tach-tick major' : 'tach-tick');
+      svg.append(tick);
+      if (k % 2 === 0) {
+        const [tx, ty] = at(f, r - 27);
+        const label = document.createElementNS(ns, 'text');
+        label.setAttribute('x', tx.toFixed(2));
+        label.setAttribute('y', (ty + 4).toFixed(2));
+        label.setAttribute('class', 'tach-num');
+        label.textContent = String(k / 2);
+        svg.append(label);
+      }
+    }
+    return svg;
+  }
+
   private button(parent: HTMLElement, key: StringKey, onClick: () => void): HTMLButtonElement {
     const b = el('button', 'hud-btn', parent);
     b.type = 'button';
@@ -393,6 +454,10 @@ export class Hud {
 
   private relabel(): void {
     for (const [node, key] of this.labelled) node.textContent = t(key);
+    for (const [node, key] of this.titled) {
+      node.title = t(key);
+      node.setAttribute('aria-label', t(key));
+    }
     // Text that is composed from state is rebuilt on the next update.
     this.last.rpm = -1;
     this.last.camera = '';

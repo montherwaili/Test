@@ -1,15 +1,16 @@
-/** A low-poly car built from primitives, sized from the tuning file. */
+/** The player's car: a smooth saloon body (carBody.ts), sized from the tuning file. */
 import {
   BoxGeometry,
-  CylinderGeometry,
   Group,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   TorusGeometry,
   type Texture,
 } from 'three';
+import { rimGeometry, sedanBody, tyreGeometry } from './carBody';
 import type { VehicleTuning } from '../sim/tuning';
 
 export interface CarLights {
@@ -32,23 +33,12 @@ export interface CarModel {
   mirrors: { left: Mesh; centre: Mesh; right: Mesh };
   setLights(l: CarLights): void;
   setMirrorTextures(left: Texture, centre: Texture, right: Texture): void;
+  /** Reflections of the sky for paint, glass and chrome. */
+  setEnvironment(env: Texture): void;
 }
 
 /** Driver's eye in the chassis frame (left-hand drive, as in Oman). */
 export const DRIVER_EYE = { x: -0.37, y: 0.68, z: 0.12 };
-
-function tapered(width: number, height: number, length: number, topScaleX: number, topScaleZ: number, shiftZ: number) {
-  const g = new BoxGeometry(width, height, length);
-  const p = g.attributes['position']!;
-  for (let i = 0; i < p.count; i++) {
-    if (p.getY(i) > 0) {
-      p.setX(i, p.getX(i) * topScaleX);
-      p.setZ(i, p.getZ(i) * topScaleZ + shiftZ);
-    }
-  }
-  g.computeVertexNormals();
-  return g;
-}
 
 export function createCarModel(tuning: VehicleTuning): CarModel {
   const { chassis, body: bt } = tuning;
@@ -57,67 +47,80 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   const front = -(toFront + chassis.frontOverhang);
   const rear = toRear + chassis.rearOverhang;
   const length = rear - front;
-  const midZ = (front + rear) / 2;
   const bottom = chassis.groundClearance - chassis.comHeight;
   const roof = chassis.bodyHeight - chassis.comHeight;
   const beltLine = bottom + 0.62;
   const w = chassis.bodyWidth;
 
-  const paint = new MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.45, metalness: 0.1, flatShading: true });
-  const glass = new MeshStandardMaterial({ color: 0x1c2630, roughness: 0.2, metalness: 0.3, flatShading: true });
-  const trim = new MeshStandardMaterial({ color: 0x22252a, roughness: 0.8, flatShading: true });
-  const tyre = new MeshStandardMaterial({ color: 0x141414, roughness: 0.95, flatShading: true });
-  const rim = new MeshStandardMaterial({ color: 0xb9bcc0, roughness: 0.4, metalness: 0.6, flatShading: true });
+  // Paint with a clear coat, tinted glass and chrome reflect the sky (setEnvironment).
+  const paint = new MeshPhysicalMaterial({ color: 0xeeeeea, roughness: 0.32, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.06 });
+  const glass = new MeshPhysicalMaterial({ color: 0x050607, roughness: 0.04, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 });
+  const trim = new MeshStandardMaterial({ color: 0x17181a, roughness: 0.6 });
+  const tyre = new MeshStandardMaterial({ color: 0x151515, roughness: 0.92 });
+  const rim = new MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.25, metalness: 0.85 });
+  const chrome = new MeshStandardMaterial({ color: 0xdfe2e5, roughness: 0.12, metalness: 1 });
 
   const root = new Group();
-
-  // Lower body, with the nose and tail pulled in a little.
-  const lower = new Mesh(tapered(w, beltLine - bottom, length, 0.96, 0.97, 0), paint);
-  lower.position.set(0, (bottom + beltLine) / 2, midZ);
+  const wheelY = bt.wheelRadius - chassis.comHeight;
+  const body = sedanBody({
+    front,
+    rear,
+    width: w,
+    bottom,
+    belt: beltLine,
+    roof,
+    axles: [-toFront, toRear],
+    wheelY,
+    wheelRadius: bt.wheelRadius,
+  });
+  const lower = new Mesh(body.paint, paint);
   lower.castShadow = true;
   root.add(lower);
+  root.add(new Mesh(body.trim, trim));
 
-  const bumperF = new Mesh(new BoxGeometry(w * 0.98, 0.2, 0.12), trim);
-  bumperF.position.set(0, bottom + 0.12, front + 0.03);
-  const bumperR = bumperF.clone();
-  bumperR.position.z = rear - 0.03;
-  root.add(bumperF, bumperR);
-
-  // Cabin: glasshouse and roof.
+  // Cabin: the glass (and the roof painted over it), hidden from the driver's seat.
   const cabin = new Group();
-  const cabinLength = length * 0.52;
-  const cabinZ = midZ + length * 0.06;
-  const glasshouse = new Mesh(tapered(w * 0.94, roof - beltLine - 0.04, cabinLength, 0.84, 0.66, 0.04), glass);
-  glasshouse.position.set(0, (beltLine + roof - 0.04) / 2, cabinZ);
+  const glasshouse = new Mesh(body.glass, glass);
   glasshouse.castShadow = true;
-  const roofPanel = new Mesh(new BoxGeometry(w * 0.94 * 0.84, 0.05, cabinLength * 0.66), paint);
-  roofPanel.position.set(0, roof - 0.025, cabinZ + 0.04);
-  cabin.add(glasshouse, roofPanel);
+  cabin.add(glasshouse);
   root.add(cabin);
 
-  // Lamps.
-  const lamp = (color: number) =>
-    new MeshStandardMaterial({ color: 0x333333, emissive: color, emissiveIntensity: 0, roughness: 0.4 });
+  // Lamps: lenses set into the body's corners, lit by their own glow.
+  const lamp = (color: number, base = 0x2a2a2a) =>
+    new MeshStandardMaterial({ color: base, emissive: color, emissiveIntensity: 0, roughness: 0.15, metalness: 0.2 });
   const mats = {
-    head: lamp(0xfff4d6),
-    brake: lamp(0xff1a1a),
-    reverse: lamp(0xffffff),
-    left: lamp(0xffa000),
-    right: lamp(0xffa000),
+    head: lamp(0xfff4d6, 0xd9dde2),
+    brake: lamp(0xff1a1a, 0x5a0d0d),
+    reverse: lamp(0xffffff, 0x8a8a8a),
+    left: lamp(0xffa000, 0x7a4a10),
+    right: lamp(0xffa000, 0x7a4a10),
   };
-  const lampBox = (mat: MeshStandardMaterial, x: number, y: number, z: number, sx = 0.3) => {
-    const m = new Mesh(new BoxGeometry(sx, 0.11, 0.06), mat);
+  const lens = (mat: MeshStandardMaterial, x: number, y: number, z: number, sx: number, sy: number, yaw = 0) => {
+    const m = new Mesh(new BoxGeometry(sx, sy, 0.05), mat);
     m.position.set(x, y, z);
+    m.rotation.y = yaw;
     root.add(m);
   };
-  const lampY = beltLine - 0.14;
+  const lift = beltLine - bottom;
   for (const side of [-1, 1]) {
-    lampBox(mats.head, side * (w / 2 - 0.3), lampY, front + 0.01);
-    lampBox(mats.brake, side * (w / 2 - 0.3), lampY, rear - 0.01);
-    lampBox(mats.reverse, side * (w / 2 - 0.55), lampY, rear - 0.005, 0.14);
-    const ind = side < 0 ? mats.left : mats.right;
-    lampBox(ind, side * (w / 2 - 0.09), lampY, front + 0.03, 0.12);
-    lampBox(ind, side * (w / 2 - 0.09), lampY, rear - 0.03, 0.12);
+    lens(mats.head, side * w * 0.33, bottom + lift * 0.72, front + 0.1, 0.34, 0.09, side * 0.25);
+    lens(side < 0 ? mats.left : mats.right, side * w * 0.43, bottom + lift * 0.72, front + 0.17, 0.08, 0.06, side * 0.7);
+    lens(mats.brake, side * w * 0.33, bottom + lift * 0.8, rear - 0.08, 0.36, 0.1, -side * 0.2);
+    lens(mats.reverse, side * w * 0.17, bottom + lift * 0.8, rear - 0.05, 0.1, 0.07);
+    lens(side < 0 ? mats.left : mats.right, side * w * 0.44, bottom + lift * 0.8, rear - 0.13, 0.07, 0.07, -side * 0.6);
+  }
+  // A chrome strip across the boot, and the number plates.
+  const strip = new Mesh(new BoxGeometry(w * 0.38, 0.025, 0.02), chrome);
+  strip.position.set(0, bottom + lift * 0.8, rear - 0.03);
+  root.add(strip);
+  const plateMat = new MeshStandardMaterial({ color: 0xf4f1e6, roughness: 0.5 });
+  for (const [zz, y] of [
+    [front - 0.012, bottom + lift * 0.32],
+    [rear + 0.012, bottom + lift * 0.5],
+  ] as const) {
+    const plate = new Mesh(new BoxGeometry(0.42, 0.11, 0.02), plateMat);
+    plate.position.set(0, y, zz);
+    root.add(plate);
   }
 
   // Door mirrors and the interior mirror; their faces show the mirror cameras' pictures.
@@ -125,7 +128,7 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   const mirrors = { left: mirrorFace(), centre: mirrorFace(), right: mirrorFace() };
   for (const side of [-1, 1] as const) {
     const housing = new Mesh(new BoxGeometry(0.2, 0.13, 0.08), paint);
-    housing.position.set(side * (w / 2 + 0.09), beltLine + 0.07, cabinZ - cabinLength * 0.36);
+    housing.position.set(side * (w / 2 * 0.95 + 0.07), beltLine + 0.06, front + length * 0.355);
     root.add(housing);
     const face = side < 0 ? mirrors.left : mirrors.right;
     face.scale.set(0.17, 0.1, 1);
@@ -170,19 +173,19 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   interior.visible = false;
   root.add(interior);
 
-  // Wheels.
+  // Wheels: rounded tyres on five-spoke alloys.
   const wheels: CarModel['wheels'] = [];
-  const tyreGeo = new CylinderGeometry(bt.wheelRadius, bt.wheelRadius, 0.2, 14);
-  tyreGeo.rotateZ(Math.PI / 2);
-  const rimGeo = new CylinderGeometry(bt.wheelRadius * 0.62, bt.wheelRadius * 0.62, 0.21, 10);
-  rimGeo.rotateZ(Math.PI / 2);
-  const spokeGeo = new BoxGeometry(0.22, bt.wheelRadius * 1.1, 0.05);
+  const tyreGeo = tyreGeometry(bt.wheelRadius, 0.2);
+  const rimRight = rimGeometry(bt.wheelRadius, 0.2);
+  const rimLeft = rimRight.clone();
+  rimLeft.scale(-1, 1, 1);
   for (let i = 0; i < 4; i++) {
     const steer = new Group();
     const spin = new Group();
     const t = new Mesh(tyreGeo, tyre);
     t.castShadow = true;
-    spin.add(t, new Mesh(rimGeo, rim), new Mesh(spokeGeo, trim));
+    // Wheels 0 and 2 are on the left.
+    spin.add(t, new Mesh(i % 2 === 0 ? rimLeft : rimRight, rim));
     steer.add(spin);
     root.add(steer);
     wheels.push({ steer, spin });
@@ -213,5 +216,13 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     apply(mirrors.right, right);
   };
 
-  return { root, wheels, cabin, interior, steeringWheel, mirrors, setLights, setMirrorTextures };
+  const setEnvironment = (env: Texture): void => {
+    for (const m of [paint, glass, rim, chrome]) {
+      m.envMap = env;
+      m.envMapIntensity = m === glass ? 1 : m === paint ? 0.9 : 1;
+      m.needsUpdate = true;
+    }
+  };
+
+  return { root, wheels, cabin, interior, steeringWheel, mirrors, setLights, setMirrorTextures, setEnvironment };
 }

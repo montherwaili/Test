@@ -4,7 +4,12 @@
  */
 import {
   ACESFilmicToneMapping,
+  CircleGeometry,
   Color,
+  Mesh,
+  MeshBasicMaterial,
+  PMREMGenerator,
+  type Texture,
   DirectionalLight,
   Fog,
   HemisphereLight,
@@ -25,7 +30,7 @@ import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
 import { DAY_SKY, NIGHT_SKY as NIGHT_SKY_COLORS, SkyDome } from './sky';
-import { nightUniform } from './surfaceDetail';
+import { loadDetailMaps, nightUniform } from './surfaceDetail';
 import { TrafficMeshes } from './trafficMeshes';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
@@ -152,11 +157,14 @@ export class GameRenderer {
     }
     this.scene.add(this.sun, this.sun.target);
 
+    loadDetailMaps(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
     this.map = buildMapMeshes(builtMap);
     this.scene.add(this.map.root);
 
     this.car = createCarModel(tuning);
     this.scene.add(this.car.root);
+    // The car's paint and glass reflect the sky and the desert: an environment map made from them once.
+    this.car.setEnvironment(this.environmentMap());
 
     // Headlamp beams, switched on with the car's lights at night.
     const toFront = tuning.chassis.wheelbase * (1 - tuning.chassis.frontWeightFraction) + tuning.chassis.frontOverhang;
@@ -193,6 +201,22 @@ export class GameRenderer {
     }
 
     this.resize();
+  }
+
+  /** A blurred picture of the world round the car (sky above, sand below) for reflections. */
+  private environmentMap(): Texture {
+    const env = new Scene();
+    const sky = new SkyDome(50);
+    sky.setSunDirection(SUN_OFFSET);
+    env.add(sky.mesh);
+    const ground = new Mesh(new CircleGeometry(48, 32), new MeshBasicMaterial({ color: 0xbfa77d }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -1.5;
+    env.add(ground);
+    const pmrem = new PMREMGenerator(this.renderer);
+    const map = pmrem.fromScene(env, 0.02).texture;
+    pmrem.dispose();
+    return map;
   }
 
   get domElement(): HTMLCanvasElement {

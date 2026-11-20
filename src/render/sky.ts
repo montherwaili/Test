@@ -44,6 +44,27 @@ export class SkyDome {
         uniform vec3 uSunDir;
         uniform float uNight;
         varying vec3 vDir;
+        float h2(vec2 p) {
+          p = fract(p * vec2(123.34, 456.21));
+          p += dot(p, p + 45.32);
+          return fract(p.x * p.y);
+        }
+        float n2(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), u.x), mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0;
+          float a = 0.5;
+          for (int k = 0; k < 5; k++) {
+            v += a * n2(p);
+            p = p * 2.02 + 7.3;
+            a *= 0.5;
+          }
+          return v;
+        }
         float hash(vec3 p) {
           p = fract(p * 0.3183099 + 0.1);
           p *= 17.0;
@@ -58,6 +79,16 @@ export class SkyDome {
           float s = max(dot(d, normalize(uSunDir)), 0.0);
           // The sun's disc and its glow (by night, the moon's).
           col += uSunColor * (pow(s, 900.0) * 3.0 + pow(s, 12.0) * 0.25 * (1.0 - uNight * 0.7));
+          // Fair-weather clouds: a thin scatter, on a plane above, thinning to the horizon.
+          if (d.y > 0.0) {
+            vec2 cp = d.xz / (d.y + 0.12) * 1.6;
+            float c = fbm(cp + vec2(3.1, 1.7));
+            float cover = smoothstep(0.56, 0.78, c) * smoothstep(0.02, 0.22, d.y);
+            float lit = 0.82 + 0.18 * smoothstep(0.5, 0.9, fbm(cp * 1.7 + 11.0));
+            vec3 cloud = mix(vec3(1.0, 0.99, 0.97), uHorizon, 0.25) * lit;
+            if (uNight > 0.5) cloud = uHorizon * 1.6;
+            col = mix(col, cloud, cover * 0.85);
+          }
           // Stars.
           if (uNight > 0.5 && d.y > 0.05) {
             vec3 g = d * 420.0;

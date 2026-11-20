@@ -8,6 +8,7 @@ import type { LessonDef } from '../learning/lesson';
 import type { ProgressData } from '../learning/progress';
 import type { GameMode } from './hud';
 import { getLang, onLangChange, setLang, t, type StringKey } from './i18n';
+import { icon } from './icons';
 
 export interface MainMenuActions {
   onMode: (mode: GameMode) => void;
@@ -79,8 +80,10 @@ export class MainMenu {
   private button(parent: HTMLElement, text: string, onClick: () => void, primary = false, note?: string): HTMLButtonElement {
     const b = el('button', `menu-choice${primary ? ' primary' : ''}`, parent);
     b.type = 'button';
-    el('span', 'choice-title', b, text);
-    if (note) el('span', 'choice-note', b, note);
+    const words = el('span', 'choice-words', b);
+    el('span', 'choice-title', words, text);
+    if (note) el('span', 'choice-note', words, note);
+    b.append(icon('chevron', 'choice-go'));
     b.addEventListener('click', onClick);
     return b;
   }
@@ -94,15 +97,28 @@ export class MainMenu {
     this.root.replaceChildren();
     const card = el('div', 'menu-card', this.root);
 
+    // The title side: name, one line on how it works, and the next thing to do.
     const head = el('header', 'menu-head', card);
+    el('div', 'menu-kicker', head, t('menuKicker'));
     el('h1', '', head, t('title'));
     el('p', 'menu-lead', head, t('menuLead'));
+    const go = el('button', 'menu-cta', head);
+    go.type = 'button';
+    if (step === 1 && next) {
+      el('span', '', go, `${t('menuNextLesson')}: ${next.title[lang]}`);
+      go.addEventListener('click', () => this.actions.onLesson(next.id));
+    } else {
+      el('span', '', go, t('testYard'));
+      go.addEventListener('click', () => this.actions.onMode('yardTest'));
+    }
+    go.append(icon('chevron'));
+    const foot = el('div', 'menu-foot', head);
 
     const steps = el('div', 'menu-steps', card);
     const stepBox = (n: 1 | 2 | 3, title: StringKey, intro: StringKey) => {
       const box = el('section', `menu-step${n === step ? ' current' : ''}`, steps);
       const top = el('div', 'step-top', box);
-      el('span', 'step-num', top, String(n));
+      el('span', 'step-num', top, `0${n}`);
       el('h2', '', top, t(title));
       if (n === step) el('span', 'step-badge', top, t('menuStartHere'));
       el('p', 'step-intro', box, t(intro));
@@ -129,16 +145,20 @@ export class MainMenu {
     this.button(test, `2 · ${t('testRoad')}`, () => this.actions.onMode('roadTest'), false, t('menuRoadTestNote'));
     if (p.tests.taken > 0) el('p', 'step-progress', test, t('testsTaken', { n: String(p.tests.taken), p: String(p.tests.passed) }));
 
-    const foot = el('div', 'menu-foot', card);
-    const settings = el('button', 'hud-btn', foot, `⚙ ${t('settings')}`);
+    const settings = el('button', 'menu-link', foot);
     settings.type = 'button';
+    settings.append(icon('settings'));
+    el('span', '', settings, t('settings'));
     settings.addEventListener('click', this.actions.onSettings);
-    const lang2 = el('button', 'hud-btn', foot, t('language'));
+    const lang2 = el('button', 'menu-link', foot);
     lang2.type = 'button';
+    lang2.append(icon('globe'));
+    el('span', '', lang2, t('language'));
     lang2.addEventListener('click', () => setLang(getLang() === 'ar' ? 'en' : 'ar'));
-    const close = el('button', 'hud-btn primary', foot, t(this.actions.closeLabel));
+    const close = el('button', 'menu-link menu-close', foot);
     close.type = 'button';
+    el('span', '', close, t(this.actions.closeLabel));
     close.addEventListener('click', this.actions.onClose);
-    el('p', 'menu-note', card, t('menuUnofficial'));
+    el('p', 'menu-note', head, t('menuUnofficial'));
   }
 }
