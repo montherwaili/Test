@@ -50,6 +50,7 @@ import { PhysicsWorld, initPhysics } from '../world/physics';
 import type { RoadNetwork } from '../world/roads/network';
 import { signalState } from '../world/roads/signals';
 import { buildCity, buildTown } from '../world/town';
+import { impactMaterial } from '../audio/soundModel';
 import { Traffic, type PlayerState } from '../traffic/traffic';
 import { TrafficBodies } from '../world/trafficBodies';
 
@@ -700,7 +701,9 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     // Touching anything: a thump, a jolt and a buzz, harder the faster it happened.
     if (exam.observation.contacts.length) {
       const hit = Math.abs(vehicle.telemetry.wheelSpeed);
-      audio.impact(hit);
+      // Several things at once: the hardest of them is what is heard.
+      const contacts = exam.observation.contacts;
+      audio.impact(contacts.find((k) => impactMaterial(k) === 'hard') ?? contacts[0]!, hit);
       renderer.shake(Math.min(0.35, 0.05 + hit * 0.03));
       vibrate(hit > 3 ? [120, 40, 120] : 60);
     }

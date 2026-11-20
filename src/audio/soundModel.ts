@@ -98,6 +98,44 @@ export function impactLoudness(speed: number): number {
   return Math.min(1, Math.max(0.15, Math.abs(speed) / 12));
 }
 
+/** What the car ran into, as far as the sound goes. */
+export type ImpactMaterial = 'hard' | 'soft' | 'plastic' | 'kerb';
+
+/** Sort what was hit: walls, poles and cars are hard; palms and people give; cones are plastic. */
+export function impactMaterial(kind: string): ImpactMaterial {
+  if (kind === 'cone') return 'plastic';
+  if (kind === 'kerb' || kind === 'island') return 'kerb';
+  if (kind === 'palm' || kind === 'pedestrian') return 'soft';
+  return 'hard';
+}
+
+export interface ImpactLayer {
+  /** Which recordings: the car body's thump, bent metal, breaking glass. */
+  layer: 'thump' | 'metal' | 'glass';
+  level: number;
+  /** Playback speed: higher for small, light things. */
+  rate: number;
+}
+
+/**
+ * The recordings a collision is made of. Every knock thumps the body; into
+ * something hard, metal bends from about 6 km/h and glass breaks from
+ * about 30 km/h; a cone is a light, hollow knock.
+ */
+export function impactLayers(material: ImpactMaterial, speed: number): ImpactLayer[] {
+  const v = Math.abs(speed);
+  const loud = impactLoudness(v);
+  if (material === 'plastic') return [{ layer: 'thump', level: 0.25 + 0.3 * loud, rate: 1.5 }];
+  const out: ImpactLayer[] = [{ layer: 'thump', level: 0.35 + 0.65 * loud, rate: material === 'kerb' ? 0.8 : 1 }];
+  if (material === 'hard') {
+    const metal = smoothstep(1.5, 9, v);
+    if (metal > 0) out.push({ layer: 'metal', level: 0.9 * metal, rate: 0.85 + 0.15 * metal });
+    const glass = smoothstep(8, 16, v);
+    if (glass > 0) out.push({ layer: 'glass', level: 0.7 * glass, rate: 1 });
+  }
+  return out;
+}
+
 /** One looped layer of the recorded engine: how fast to play it and how loud. */
 export interface LayerLevel {
   name: string;

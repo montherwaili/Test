@@ -6,11 +6,10 @@
  * switch-off. Loaded after the first touch; until then (or if loading
  * fails) the synthesized engine plays instead.
  */
+import { decodeBank, fetchBank, type BankMeta, type Fetched } from './soundBank';
 import { recordedMix } from './soundModel';
 
-interface Meta {
-  /** Fingerprint of the sound files, so a browser never plays old copies of them. */
-  version: string;
+interface Meta extends BankMeta {
   idleRpm: number;
   points: number[];
   /** Seconds into crank.wav looped while the starter keeps turning. */
@@ -21,37 +20,9 @@ interface Meta {
   crankFires: number;
 }
 
-const BASE = 'sounds/engine/';
-
-interface Fetched {
-  meta: Meta;
-  files: Map<string, ArrayBuffer>;
-}
-
-let fetched: Promise<Fetched> | null = null;
-
-/**
- * Start downloading the recordings (no audio context needed): called as the
- * page loads, so they are usually in hand by the time the engine is started.
- */
-export function prefetchEngineSounds(): Promise<Fetched> {
-  fetched ??= (async () => {
-    const url = (name: string) => new URL(BASE + name, document.baseURI).href;
-    const res = await fetch(url('meta.json'), { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`meta.json: ${res.status}`);
-    const meta = (await res.json()) as Meta;
-    const names = [...layerNames(meta), 'crank', 'catch', 'stop'];
-    const files = new Map<string, ArrayBuffer>();
-    await Promise.all(
-      names.map(async (name) => {
-        const r = await fetch(url(`${name}.wav?v=${meta.version}`));
-        if (!r.ok) throw new Error(`${name}: ${r.status}`);
-        files.set(name, await r.arrayBuffer());
-      }),
-    );
-    return { meta, files };
-  })();
-  return fetched;
+/** Start downloading the recordings (no audio context needed): called as the page loads. */
+export function prefetchEngineSounds(): Promise<Fetched<Meta>> {
+  return fetchBank<Meta>('engine', (meta) => [...layerNames(meta), 'crank', 'catch', 'stop']);
 }
 
 function layerNames(meta: Meta): string[] {
@@ -102,15 +73,12 @@ export class RecordedEngine {
   /** Fetch (if not already under way) and decode everything; resolves false if anything is missing. */
   async load(): Promise<boolean> {
     try {
-      const { meta, files } = await prefetchEngineSounds();
-      // decodeAudioData takes the buffer over: decode copies, so a second car can use them too.
-      const decode = (name: string) => this.ctx.decodeAudioData(files.get(name)!.slice(0));
-      const names = layerNames(meta);
-      const buffers = await Promise.all(names.map(decode));
-      const [crank, catchBuf, stop] = await Promise.all(['crank', 'catch', 'stop'].map(decode));
-      names.forEach((name, i) => this.layers.set(name, this.loop(buffers[i]!, this.bus)));
-      this.crankBuf = crank!;
-      this.shots = { catch: catchBuf!, stop: stop! };
+      const bank = await prefetchEngineSounds();
+      const meta = bank.meta;
+      const buffers = await decodeBank(this.ctx, bank);
+      for (const name of layerNames(meta)) this.layers.set(name, this.loop(buffers.get(name)!, this.bus));
+      this.crankBuf = buffers.get('crank')!;
+      this.shots = { catch: buffers.get('catch')!, stop: buffers.get('stop')! };
       this.meta = meta;
       return true;
     } catch {

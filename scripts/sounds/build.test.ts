@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { alignGrains, cutGrains, findFirings, firingInterval, renderGranularLoop, type Grain } from '../../src/audio/granular';
+import { alignGrains, crossfadeLoop, cutGrains, findFirings, firingInterval, renderGranularLoop, type Grain } from '../../src/audio/granular';
 
 const SRC = 'assets/sounds-src/';
 const OUT = 'public/sounds/engine/';
@@ -34,7 +34,7 @@ function decode(file: string): Float32Array {
   return new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4).slice();
 }
 
-function writeWav(name: string, x: Float32Array): void {
+function writeWav(name: string, x: Float32Array, dir = OUT): void {
   const b = Buffer.alloc(44 + x.length * 2);
   b.write('RIFF', 0);
   b.writeUInt32LE(36 + x.length * 2, 4);
@@ -49,7 +49,7 @@ function writeWav(name: string, x: Float32Array): void {
   b.write('data', 36);
   b.writeUInt32LE(x.length * 2, 40);
   for (let i = 0; i < x.length; i++) b.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x[i]!)) * 32767), 44 + i * 2);
-  writeFileSync(OUT + name, b);
+  writeFileSync(dir + name, b);
 }
 
 const seg = (x: Float32Array, a: number, b: number) => x.slice(Math.round(a * SR), Math.round(b * SR));
@@ -147,4 +147,74 @@ it('builds the engine sound bank', () => {
   expect(realRpm).toBeGreaterThan(850);
   expect(realRpm).toBeLessThan(1150);
   expect(light.length).toBeGreaterThan(500);
+});
+
+// --- crashes ------------------------------------------------------------------------
+
+const CRASH_SRC = 'crash/';
+const CRASH_OUT = 'public/sounds/crash/';
+
+/** Start of each loud event: where the loudness first comes within `withinDb` of the loudest. */
+function loudOnsets(x: Float32Array, withinDb: number, gapS: number): number[] {
+  const hop = Math.round(0.005 * SR);
+  const levels: number[] = [];
+  for (let i = 0; i + hop <= x.length; i += hop) levels.push(rms(x.subarray(i, i + hop)));
+  const top = Math.max(...levels);
+  const limit = top * 10 ** (-withinDb / 20);
+  const onsets: number[] = [];
+  for (let k = 0; k < levels.length; k++) {
+    if (levels[k]! < limit) continue;
+    const t = k * hop;
+    if (onsets.length && t - onsets[onsets.length - 1]! < gapS * SR) continue;
+    // Back up to where it starts rising.
+    let s = k;
+    while (s > 0 && levels[s - 1]! > top * 0.01 && k - s < 10) s--;
+    onsets.push(s * hop);
+  }
+  return onsets;
+}
+
+/** Cut `lengthS` from `start` (samples), with a short lead-in and a fade-out, peak-normalised. */
+function hit(x: Float32Array, start: number, lengthS: number): Float32Array {
+  const from = Math.max(0, start - Math.round(0.004 * SR));
+  const y = fades(x.slice(from, Math.min(x.length, from + Math.round(lengthS * SR))), 0.002, lengthS * 0.5);
+  let peak = 0;
+  for (const v of y) peak = Math.max(peak, Math.abs(v));
+  return y.map((v) => (v / peak) * 0.85);
+}
+
+it('builds the crash sound bank', () => {
+  mkdirSync(CRASH_OUT, { recursive: true });
+  for (const f of readdirSync(CRASH_OUT).filter((n) => n.endsWith('.wav'))) rmSync(CRASH_OUT + f);
+  const write = (name: string, x: Float32Array) => writeWav(name, x, CRASH_OUT);
+
+  // The body: a car door slammed, heard from inside the car (the loud closes, not the openings).
+  const doors = decode(CRASH_SRC + 'BigSoundBank-0655-car-door-slam-inside.flac');
+  const thumps = loudOnsets(doors, 8, 1).slice(0, 5);
+  thumps.forEach((t, i) => write(`thump-${i + 1}.wav`, hit(doors, t, 0.55)));
+
+  // Bent metal: sheet-steel bars falling on a path.
+  const steel = ['1771', '1772', '1773', '1776', '1777'];
+  steel.forEach((n, i) => {
+    const x = decode(`${CRASH_SRC}BigSoundBank-${n}-sheet-steel-fall.flac`);
+    write(`metal-${i + 1}.wav`, hit(x, loudOnsets(x, 6, 1)[0]!, 1.1));
+  });
+
+  // Breaking glass, for the hardest knocks.
+  const glass = decode(CRASH_SRC + 'BigSoundBank-0771-broken-glass.flac');
+  const smashes = loudOnsets(glass, 14, 1).slice(0, 4);
+  smashes.forEach((t, i) => write(`glass-${i + 1}.wav`, hit(glass, t, 0.9)));
+
+  // Tyres squealing: the steady middle of it, looped.
+  const tyres = decode(CRASH_SRC + 'BigSoundBank-2368-screeching-tires.flac');
+  const squeal = seg(tyres, 0.3, 1.75);
+  write('squeal.wav', clip(crossfadeLoop(squeal, SR, 0.15).map((v) => (v * 0.25) / rms(squeal))));
+
+  const hash = createHash('sha1');
+  for (const f of readdirSync(CRASH_OUT).filter((n) => n.endsWith('.wav')).sort()) hash.update(readFileSync(CRASH_OUT + f));
+  const meta = { version: hash.digest('hex').slice(0, 10), thump: thumps.length, metal: steel.length, glass: smashes.length };
+  writeFileSync(CRASH_OUT + 'meta.json', JSON.stringify(meta, null, 1) + '\n');
+
+  expect(thumps.length).toBeGreaterThanOrEqual(4);
+  expect(smashes.length).toBeGreaterThanOrEqual(3);
 });

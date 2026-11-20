@@ -13,3 +13,9 @@ by Joseph Sardin (Tascam DR-40 + Sennheiser ME66), released under
 [CC0 1.0 (public-domain dedication)](https://creativecommons.org/publicdomain/zero/1.0/)
 by BigSoundBank. No attribution is required; it is given here with thanks.
 The sounds built from it are likewise CC0.
+
+# Collisions and tyres
+
+The recordings in `crash/` (car door slam, sheet steel, broken glass, tyre
+squeal) are also BigSoundBank recordings by Joseph Sardin, CC0: see
+`crash/CREDITS.md`.

@@ -14,6 +14,7 @@
  * Browsers only allow sound after the user has touched the page, so the
  * audio graph is built on the first touch, click or key press.
  */
+import { CrashSounds, prefetchCrashSounds } from './crashSounds';
 import { prefetchEngineSounds, RecordedEngine } from './recordedEngine';
 import {
   renderBuckle,
@@ -78,6 +79,8 @@ export class CarAudio {
   private recorded: RecordedEngine | null = null;
   /** The recordings are still loading: the synthesized engine stays silent rather than be heard first. */
   private recordedPending = false;
+  /** Collisions and tyre squeal from real recordings, once loaded (synthesized until then). */
+  private crashes: CrashSounds | null = null;
 
   private lastLit = false;
   private wasTurning = false;
@@ -87,6 +90,7 @@ export class CarAudio {
   constructor(target: Window) {
     // Download the engine recordings now, before the first touch.
     prefetchEngineSounds().catch(() => undefined);
+    prefetchCrashSounds().catch(() => undefined);
     // The first gesture unlocks audio.
     const unlock = () => {
       this.start();
@@ -266,6 +270,10 @@ export class CarAudio {
       if (ok) this.recorded = recorded;
       this.recordedPending = false;
     });
+    const crashes = new CrashSounds(ctx, this.master!);
+    void crashes.load().then((ok) => {
+      if (ok) this.crashes = crashes;
+    });
   }
 
   private noiseLayer(type: BiquadFilterType, freq: number, q: number): GainNode {
@@ -336,7 +344,10 @@ export class CarAudio {
     this.turboOsc!.frequency.setTargetAtTime(1800 + 3200 * this.boost, now, 0.05);
     this.turboGain!.gain.setTargetAtTime(0.035 * this.boost * this.boost, now, 0.05);
 
-    this.tyreGain!.gain.setTargetAtTime(tyreSqueal(s.slipAngleDeg, s.wheelspinRatio, s.brakeDecel, s.speed) * 0.35, now, SMOOTH);
+    const squeal = tyreSqueal(s.slipAngleDeg, s.wheelspinRatio, s.brakeDecel, s.speed);
+    // The recorded tyres, when they are ready, take over from the synthesized squeal.
+    this.tyreGain!.gain.setTargetAtTime(this.crashes ? 0 : squeal * 0.35, now, SMOOTH);
+    this.crashes?.setSqueal(squeal);
     this.roadGain!.gain.setTargetAtTime(roadNoise(s.speed) * 0.18, now, 0.2);
     this.hornGain!.gain.setTargetAtTime(s.horn ? 0.6 : 0, now, 0.008);
     if (s.indicatorLit !== this.lastLit) {
@@ -352,6 +363,7 @@ export class CarAudio {
     const gains = [...Object.values(this.engine).map((l) => l.gain), this.crank?.gain, this.coast?.gain, this.turboGain, this.tyreGain, this.roadGain, this.hornGain];
     for (const g of gains) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     this.recorded?.quiet();
+    this.crashes?.quiet();
   }
 
   private play(name: string, level: number, rate = 1): void {
@@ -388,7 +400,12 @@ export class CarAudio {
     src.stop(now + 0.5);
   }
 
-  impact(speed: number): void {
+  /** The car hit something: `kind` as the examiner names it ('wall', 'cone', 'trafficCar', ...), at `speed` m/s. */
+  impact(kind: string, speed: number): void {
+    if (this.crashes) {
+      this.crashes.impact(kind, speed);
+      return;
+    }
     const loud = impactLoudness(speed);
     // A gentle nudge is a duller, lower thud.
     this.play('crunch', loud, 0.75 + 0.35 * loud);

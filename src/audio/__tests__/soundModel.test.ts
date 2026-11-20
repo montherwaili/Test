@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HIGH_REF_RPM, LOW_REF_RPM, dieselMix, impactLoudness, recordedMix, roadNoise, turboTarget, tyreSqueal } from '../soundModel';
+import { HIGH_REF_RPM, LOW_REF_RPM, dieselMix, impactLayers, impactLoudness, impactMaterial, recordedMix, roadNoise, turboTarget, tyreSqueal } from '../soundModel';
 
 describe('diesel engine mix', () => {
   it('plays the loops at the engine speed', () => {
@@ -112,5 +112,36 @@ describe('recorded engine mix', () => {
         expect(l.rate).toBeLessThan(1.6);
       }
     }
+  });
+});
+
+describe('collisions', () => {
+  const layers = (m: Parameters<typeof impactLayers>[0], v: number) => impactLayers(m, v).map((l) => l.layer);
+
+  it('sorts what was hit', () => {
+    expect(impactMaterial('wall')).toBe('hard');
+    expect(impactMaterial('trafficCar')).toBe('hard');
+    expect(impactMaterial('pole')).toBe('hard');
+    expect(impactMaterial('cone')).toBe('plastic');
+    expect(impactMaterial('kerb')).toBe('kerb');
+    expect(impactMaterial('palm')).toBe('soft');
+  });
+
+  it('only thumps at a crawl; bends metal faster; breaks glass in a real crash', () => {
+    expect(layers('hard', 1)).toEqual(['thump']);
+    expect(layers('hard', 5)).toEqual(['thump', 'metal']);
+    expect(layers('hard', 14)).toEqual(['thump', 'metal', 'glass']);
+  });
+
+  it('never bends metal or breaks glass on soft things, kerbs or cones', () => {
+    for (const m of ['soft', 'kerb', 'plastic'] as const) expect(layers(m, 20)).toEqual(['thump']);
+  });
+
+  it('gets louder with speed', () => {
+    const level = (v: number) => impactLayers('hard', v).find((l) => l.layer === 'metal')?.level ?? 0;
+    expect(level(4)).toBeLessThan(level(8));
+    const thump = (v: number) => impactLayers('hard', v)[0]!.level;
+    expect(thump(1)).toBeLessThan(thump(10));
+    for (const v of [0, 3, 10, 30]) for (const l of impactLayers('hard', v)) expect(l.level).toBeLessThanOrEqual(1);
   });
 });
