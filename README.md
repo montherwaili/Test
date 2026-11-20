@@ -99,8 +99,8 @@ test. Step 1 is marked "start here" until five lessons are done, then step 3.
 **Modes** (home screen, Help, or the address): free drive `#free` (no
 examiner at all: no faults, no messages, no score; what runs behind the home
 screen) in the **city**: 16 junctions on wide streets (two lanes each way,
-signals and two-lane roundabouts) inside a three-lane ring expressway at
-100 km/h with sweeping curves, and an industrial estate; the **motorway**
+signals and two-lane roundabouts, nothing over 60 km/h) and an industrial
+estate down a road to the south; the **motorway**
 `#highway`, a map of its own: a great loop of three-lane motorway at
 120 km/h through the desert with 500 m curves and hills, a service station
 and a village off it; town practice with notes `#town`, yard practice `#yard`, yard test
@@ -368,7 +368,10 @@ manual car (`src/sim/driverAids.ts`). Lessons always use the manual.
 In free drive a **map** in the corner (on a computer) shows the roads round
 the car, the fast ones in amber.
 
-On touch screens the clutch pedal has a scale beside it (where it bites, and
+On touch screens one layout fits every phone held sideways (sized from the
+screen height): menu and mirrors top left, gear lever top right, clutch and
+wheel bottom left, pedals bottom right, and the switches over start and the
+handbrake between the thumbs. The clutch pedal has a scale beside it (where it bites, and
 where it is down far enough to change gear) and says where it is in words;
 with the automatic clutch or gearbox it is not shown at all.
 

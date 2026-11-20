@@ -24,20 +24,13 @@ function inside(p: P2): boolean {
 }
 
 describe('free-drive city', () => {
-  it('is a city of wide streets inside a three-lane ring, with an industrial estate', () => {
-    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(150);
+  it('is a city of wide streets and junctions, with an industrial estate: no motorway', () => {
+    expect(lanes.filter((l) => l.kind === 'road').length).toBeGreaterThan(100);
     expect(net.signals.size).toBeGreaterThanOrEqual(6);
-    // City streets have two lanes each way; the ring three.
+    // City streets have two lanes each way.
     expect(net.lane('r2a:f1').speedLimit).toBe(60);
-    expect(net.lane('eN2:f2').speedLimit).toBe(100);
-    // No motorway here: that is a map of its own.
-    expect(lanes.some((l) => l.speedLimit > 100)).toBe(false);
-  });
-
-  it('takes the ring round wide curves', () => {
-    const curves = lanes.filter((l) => l.owner === 'gNW');
-    expect(curves.length).toBeGreaterThan(0);
-    for (const l of curves) expect(l.path.length).toBeGreaterThan(300);
+    // Nothing faster than 60 here: the motorway is a map of its own.
+    expect(Math.max(...lanes.map((l) => l.speedLimit))).toBeLessThanOrEqual(60);
   });
 
   it('joins every lane, end to start, without gaps or kinks', () => {

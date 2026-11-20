@@ -234,8 +234,9 @@ export class TouchControls {
 
     // --- the rest ------------------------------------------------------------------
     // Needed for every move-off: between the thumbs. Needed now and then: out of the way, top left.
+    // Start, the handbrake and the car's own switches between the thumbs; mirrors under the menu, top left.
     const main = el('div', 'buttons buttons-main', this.root);
-    const extra = el('div', 'buttons buttons-extra', this.root);
+    const mirrorsBox = el('div', 'buttons buttons-mirrors', this.root);
     // Each button: its symbol, and a word under it.
     const button = (parent: HTMLElement, className: string, name: IconName, key: StringKey | null, action: () => void) => {
       const b = el('button', `ctl-btn ${className}`, parent);
@@ -251,9 +252,11 @@ export class TouchControls {
     // The handbrake button says which way it is, in words (set in update()).
     this.toggles.handbrake = button(main, 'btn-hb', 'handbrake', null, () => this.onAction({ type: 'handbrake' }));
     this.hbWord = el('span', 'ctl-word', this.toggles.handbrake);
-    this.toggles.seatbelt = button(extra, 'btn-belt', 'seatbelt', 'seatbelt', () => this.onAction({ type: 'seatbelt' }));
-    button(extra, 'btn-lights', 'lowBeam', 'lights', () => this.onAction({ type: 'lights' }));
-    const horn = button(extra, 'btn-horn', 'horn', 'horn', () => undefined);
+    // A line break: the small switches go on a row above start and the handbrake.
+    el('div', 'buttons-break', main);
+    this.toggles.seatbelt = button(main, 'btn-belt small', 'seatbelt', 'seatbelt', () => this.onAction({ type: 'seatbelt' }));
+    button(main, 'btn-lights small', 'lowBeam', 'lights', () => this.onAction({ type: 'lights' }));
+    const horn = button(main, 'btn-horn small', 'horn', 'horn', () => undefined);
     this.hold(horn, (on) => (this.state.horn = on));
     // Mirror checks: a tap is a glance; holding turns the driver's head.
     const mirrors: [StringKey, 'left' | 'centre' | 'right'][] = [
@@ -262,7 +265,7 @@ export class TouchControls {
       ['mirrorRightShort', 'right'],
     ];
     for (const [key, mirror] of mirrors) {
-      const b = button(extra, `btn-mirror btn-mirror-${mirror}`, 'mirror', key, () => undefined);
+      const b = button(mirrorsBox, `btn-mirror small btn-mirror-${mirror}`, 'mirror', key, () => undefined);
       b.addEventListener('pointerdown', () => {
         this.onAction({ type: 'mirror', mirror });
         this.state.look = mirror;

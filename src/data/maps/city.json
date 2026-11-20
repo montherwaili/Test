@@ -1,6 +1,6 @@
 {
  "id": "world",
- "groundSize": 4400,
+ "groundSize": 4200,
  "laneWidth": 3.65,
  "medianWidth": 3,
  "seed": 20263,
@@ -110,90 +110,6 @@
    "z": 360,
    "type": "bend",
    "radius": 30
-  },
-  {
-   "id": "gNW",
-   "x": -820,
-   "z": -820,
-   "type": "bend",
-   "radius": 240
-  },
-  {
-   "id": "gNE",
-   "x": 820,
-   "z": -820,
-   "type": "bend",
-   "radius": 240
-  },
-  {
-   "id": "gSE",
-   "x": 820,
-   "z": 820,
-   "type": "bend",
-   "radius": 240
-  },
-  {
-   "id": "gSW",
-   "x": -820,
-   "z": 820,
-   "type": "bend",
-   "radius": 240
-  },
-  {
-   "id": "jN1",
-   "x": -120,
-   "z": -820,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jN2",
-   "x": 120,
-   "z": -820,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jS1",
-   "x": -120,
-   "z": 820,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jS2",
-   "x": 120,
-   "z": 820,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jW1",
-   "x": -820,
-   "z": -120,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jW2",
-   "x": -820,
-   "z": 120,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jE1",
-   "x": 820,
-   "z": -120,
-   "type": "roundabout",
-   "ringLanes": 2
-  },
-  {
-   "id": "jE2",
-   "x": 820,
-   "z": 120,
-   "type": "roundabout",
-   "ringLanes": 2
   },
   {
    "id": "s1",
@@ -497,185 +413,22 @@
    ]
   },
   {
-   "id": "eN1",
-   "from": "gNW",
-   "to": "jN1",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eN2",
-   "from": "jN1",
-   "to": "jN2",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eN3",
-   "from": "jN2",
-   "to": "gNE",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eS1",
-   "from": "gSW",
-   "to": "jS1",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eS2",
-   "from": "jS1",
-   "to": "jS2",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eS3",
-   "from": "jS2",
-   "to": "gSE",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eW1",
-   "from": "gNW",
-   "to": "jW1",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eW2",
-   "from": "jW1",
-   "to": "jW2",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eW3",
-   "from": "jW2",
-   "to": "gSW",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eE1",
-   "from": "gNE",
-   "to": "jE1",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eE2",
-   "from": "jE1",
-   "to": "jE2",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "eE3",
-   "from": "jE2",
-   "to": "gSE",
-   "lanes": 3,
-   "limit": 100,
-   "sidewalks": false,
-   "median": 6
-  },
-  {
-   "id": "lN1",
-   "from": "jN1",
-   "to": "b1",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lN2",
-   "from": "jN2",
-   "to": "c1",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lS1",
-   "from": "b4",
-   "to": "jS1",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lS2",
-   "from": "c4",
-   "to": "jS2",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lW1",
-   "from": "jW1",
-   "to": "a2",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lW2",
-   "from": "jW2",
-   "to": "a3",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lE1",
-   "from": "d2",
-   "to": "jE1",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
-   "id": "lE2",
-   "from": "d3",
-   "to": "jE2",
-   "lanes": 2,
-   "limit": 70,
-   "median": 4
-  },
-  {
    "id": "sl",
-   "from": "jS1",
+   "from": "b4",
    "to": "s1",
    "lanes": 2,
-   "limit": 80,
-   "median": 4,
-   "sidewalks": false
+   "limit": 60,
+   "features": [
+    {
+     "type": "crossing",
+     "at": 200
+    },
+    {
+     "type": "bump",
+     "at": 500
+    }
+   ],
+   "median": 4
   },
   {
    "id": "sa",

@@ -292,8 +292,8 @@ const STRINGS = {
   },
   practiseTown: { ar: 'تدريب في المدينة مع ملاحظات', en: 'Practise in town, with notes' },
   menuFreeNote: {
-    ar: 'مدينة بشوارع واسعة وطريق دائري سريع ومنطقة صناعية: لا فاحص، لا أخطاء، لا تقييم.',
-    en: 'A city of wide streets, a ring expressway and an industrial estate: no examiner, no faults, no score.',
+    ar: 'مدينة بشوارع واسعة وإشارات ودوّارات ومنطقة صناعية: لا فاحص، لا أخطاء، لا تقييم.',
+    en: 'A city of wide streets, signals, roundabouts and an industrial estate: no examiner, no faults, no score.',
   },
   menuTownNote: {
     ar: 'الفاحص يراقب ويخبرك بكل خطأ فوراً مع نصيحة.',

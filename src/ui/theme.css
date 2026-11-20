@@ -1195,3 +1195,154 @@ button {
     transform: translateX(-50%) scale(0.52);
   }
 }
+
+/* --- touch screens: one layout that fits from the smallest phone up -------------
+   Left thumb: clutch, wheel (indicators above it). Right thumb: gear lever
+   (top) and the pedals. Between the thumbs: the car's switches over start and
+   the handbrake. Top left: the menu row, and the mirrors under it.
+   Everything is sized from the screen height, so nothing meets. */
+.touch #app,
+#app.touch {
+  --u: clamp(34px, 10.5vh, 46px);
+  --gap: 6px;
+  --edge-t: max(8px, env(safe-area-inset-top, 0px));
+  --pedal-w: clamp(50px, 9vw, 84px);
+  --pedal-h: clamp(104px, 37vh, 220px);
+  --wheel: clamp(112px, 37vh, 200px);
+}
+
+.touch .topbar {
+  top: var(--edge-t);
+  left: var(--edge-x);
+  max-width: none;
+  flex-wrap: nowrap;
+  gap: var(--gap);
+}
+
+.touch .topbar .icon-btn {
+  width: var(--u);
+  height: var(--u);
+  min-width: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+.touch .topbar .btn-text {
+  display: none;
+}
+
+.touch .buttons-mirrors {
+  display: flex;
+  gap: var(--gap);
+  position: absolute;
+  top: calc(var(--edge-t) + var(--u) + var(--gap));
+  left: var(--edge-x);
+}
+
+.touch .ctl-btn.small {
+  width: var(--u);
+  min-width: 0;
+  height: var(--u);
+  min-height: 0;
+  padding: 2px;
+  border-radius: 11px;
+}
+
+.touch .ctl-btn.small .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.touch .ctl-btn.small .ctl-word {
+  font-size: 9px;
+}
+
+.touch .pedals-left {
+  left: var(--edge-x);
+  right: auto;
+  bottom: var(--edge-b);
+  padding: 8px 18px 8px 8px;
+}
+
+.touch .pedals-right {
+  right: var(--edge-r);
+  bottom: var(--edge-b);
+  padding: 8px;
+  gap: 8px;
+}
+
+.touch .wheel-box {
+  left: calc(var(--edge-x) + var(--pedal-w) + 26px + 12px);
+  bottom: var(--edge-b);
+  gap: var(--gap);
+}
+
+.touch .indicators {
+  gap: var(--gap);
+}
+
+.touch .indicators .ctl-btn {
+  width: var(--u);
+  height: var(--u);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.touch .indicators .ctl-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.touch .buttons-main {
+  bottom: var(--edge-b);
+  left: calc(var(--edge-x) + var(--pedal-w) + 38px + var(--wheel) + 12px);
+  right: calc(var(--edge-r) + var(--pedal-w) * 2 + 36px);
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  align-items: flex-end;
+  gap: var(--gap) 8px;
+}
+
+.touch .controls.no-clutch .buttons-main {
+  left: calc(var(--edge-x) + var(--wheel) + 12px);
+}
+
+.buttons-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.touch .buttons-main .btn-start {
+  width: calc(var(--u) * 1.35);
+  height: calc(var(--u) * 1.35);
+  min-height: 0;
+}
+
+.touch .buttons-main .btn-hb {
+  min-height: calc(var(--u) * 1.15);
+  padding: 2px 10px;
+}
+
+.touch .shifter {
+  top: var(--edge-t);
+  bottom: auto;
+  right: var(--edge-r);
+  width: calc(var(--pedal-w) * 2 + 34px);
+  height: clamp(96px, 30vh, 150px);
+  min-height: 0;
+  max-height: none;
+}
+
+.touch .shifter-knob {
+  width: clamp(30px, 9vh, 40px);
+  height: clamp(30px, 9vh, 40px);
+}
+
+.touch .buttons-main .ctl-btn.small {
+  width: var(--u);
+  height: var(--u);
+  min-height: 0;
+  padding: 2px;
+}
