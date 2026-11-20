@@ -5,6 +5,7 @@
  * about a dozen draw calls.
  */
 import {
+  AdditiveBlending,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
@@ -22,6 +23,7 @@ import {
   PlaneGeometry,
   Quaternion,
   RingGeometry,
+  ShaderMaterial,
   SphereGeometry,
   Vector3,
 } from 'three';
@@ -428,6 +430,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   // Street lamps along the pavements, every 40 m, the arm reaching over the road.
   const lampHeads: BufferGeometry[] = [];
+  const lampPools: BufferGeometry[] = [];
   const onRoad = (x: number, z: number) =>
     def.roads.some((r) => {
       const dx = r.to[0] - r.from[0];
@@ -459,6 +462,12 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
       const head = lamp.lamp.clone();
       head.applyMatrix4(new Matrix4().makeRotationY(yaw).setPosition(x, 0, z));
       lampHeads.push(head);
+      // Where its light falls: a soft pool on the road, shown at night.
+      const pool = new CircleGeometry(7, 16);
+      pool.deleteAttribute('uv');
+      pool.rotateX(-Math.PI / 2);
+      pool.translate(x + Math.cos(yaw) * 1.8, 0.03, z - Math.sin(yaw) * 1.8);
+      lampPools.push(pool);
     }
   }
 
@@ -564,8 +573,41 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     }
   }
 
+  let poolMesh: Mesh | null = null;
   const lampGlass = new MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd9a0, emissiveIntensity: 0.05, roughness: 0.4 });
   if (lampHeads.length > 0) root.add(new Mesh(mergeGeometries(lampHeads, false), lampGlass));
+  // Pools of lamplight: added on top of the ground, brightest under the lamp, fading out.
+  const poolMaterial = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    polygonOffset: true,
+    polygonOffsetFactor: -6,
+    polygonOffsetUnits: -6,
+    uniforms: { uStrength: { value: 0 } },
+    vertexShader: 'varying vec2 vLocal; attribute vec2 centre; void main(){ vLocal = position.xz - centre; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader:
+      'uniform float uStrength; varying vec2 vLocal; void main(){ float d = length(vLocal) / 7.0; float a = uStrength * (1.0 - smoothstep(0.0, 1.0, d)); gl_FragColor = vec4(vec3(1.0, 0.78, 0.5) * a, 1.0); }',
+  });
+  if (lampPools.length > 0) {
+    // Each pool knows its own centre, for the fade.
+    for (const g of lampPools) {
+      const p = g.attributes['position']!;
+      const centre = new Float32Array(p.count * 2);
+      const cx = p.getX(0);
+      const cz = p.getZ(0);
+      for (let i = 0; i < p.count; i++) {
+        centre[i * 2] = cx;
+        centre[i * 2 + 1] = cz;
+      }
+      g.setAttribute('centre', new BufferAttribute(centre, 2));
+    }
+    const pools = new Mesh(mergeGeometries(lampPools, false), poolMaterial);
+    pools.renderOrder = 3;
+    pools.visible = false;
+    poolMesh = pools;
+    root.add(pools);
+  }
 
   // --- paint ------------------------------------------------------------------------
   const batches = new Map<MarkingColor, PaintBatch>();
@@ -612,6 +654,8 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   const setNight: MapMeshes['setNight'] = (night) => {
     for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.35 : 1);
     lampGlass.emissiveIntensity = night ? 3 : 0.05;
+    poolMaterial.uniforms.uStrength!.value = night ? 0.32 : 0;
+    if (poolMesh) poolMesh.visible = night;
   };
 
   // --- loose cones ----------------------------------------------------------------
