@@ -48,7 +48,7 @@ const raw = new Map<string, Promise<RawCar>>();
 function load(name: string): Promise<RawCar> {
   let p = raw.get(name);
   if (!p) {
-    p = new GLTFLoader().loadAsync(new URL(`models/cars/${name}.glb`, document.baseURI).href).then((gltf) => {
+    p = new GLTFLoader().loadAsync(new URL(`models/cars/${name}.json`, document.baseURI).href).then((gltf) => {
       let body: RawCar['body'] | null = null;
       let bodyAt: RawCar['bodyAt'] = [0, 0, 0];
       let material: Material | null = null;
