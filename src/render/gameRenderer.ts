@@ -29,6 +29,7 @@ import type { BuiltMap } from '../world/map';
 import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
+import { fittedCar } from './kenneyCars';
 import { DAY_SKY, NIGHT_SKY as NIGHT_SKY_COLORS, SkyDome } from './sky';
 import { loadDetailMaps, nightUniform } from './surfaceDetail';
 import { TrafficMeshes } from './trafficMeshes';
@@ -79,6 +80,9 @@ export interface LooseView {
 
 const HAZE = DAY_SKY.horizon;
 const NIGHT_HAZE = NIGHT_SKY_COLORS.horizon;
+/** The kit's cars used for traffic, one kind per car. */
+const TRAFFIC_MODELS = ['sedan', 'suv', 'taxi', 'suv-luxury', 'van', 'hatchback-sports'];
+
 /** Where the sun is, relative to what it lights: high, from the south-east. */
 const SUN_OFFSET = new Vector3(50, 90, 35);
 /** Steering wheel turns per unit of steering input, rad (about 1.4 turns each way). */
@@ -167,6 +171,10 @@ export class GameRenderer {
     this.scene.add(this.car.root);
     // The car's paint and glass reflect the sky and the desert: an environment map made from them once.
     this.car.setEnvironment(this.environmentMap());
+    // The car model (Kenney's sedan), fitted to this car, takes over from the drawn body once loaded.
+    void fittedCar('sedan', this.car.fit)
+      .then((m) => this.car.useModel(m))
+      .catch(() => undefined);
 
     // Headlamp beams, switched on with the car's lights at night.
     const toFront = tuning.chassis.wheelbase * (1 - tuning.chassis.frontWeightFraction) + tuning.chassis.frontOverhang;
@@ -249,6 +257,14 @@ export class GameRenderer {
   addTraffic(cars: readonly TrafficCar[], people: readonly Pedestrian[]): void {
     this.traffic = new TrafficMeshes(cars, people);
     this.scene.add(this.traffic.root);
+    // Traffic as the kit's cars: saloons, SUVs, taxis, vans and hatchbacks, fitted to the traffic cars' size.
+    const length = cars[0]?.length ?? 4.2;
+    const width = cars[0]?.width ?? 1.7;
+    const fit = { front: -length / 2, rear: length / 2, frontAxle: -length * 0.31, rearAxle: length * 0.3, width, ground: 0, roof: 1.45 };
+    const traffic = this.traffic;
+    void Promise.all(TRAFFIC_MODELS.map((n) => fittedCar(n, n === 'suv' || n === 'suv-luxury' || n === 'van' ? { ...fit, roof: 1.75 } : fit)))
+      .then((models) => traffic.useModels(cars, models))
+      .catch(() => undefined);
   }
 
   /** Move traffic meshes to match the traffic logic. */

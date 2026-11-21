@@ -4,6 +4,7 @@
  * town adds only a handful of draw calls.
  */
 import {
+  AdditiveBlending,
   BoxGeometry,
   BufferAttribute,
   Color,
@@ -23,6 +24,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Pedestrian } from '../traffic/pedestrians';
 import type { TrafficCar } from '../traffic/vehicles';
 import { sedanBody, tyreGeometry } from './carBody';
+import type { FittedCar } from './kenneyCars';
 import { headwearGeometry, robeGeometry, skinGeometry } from './props';
 
 /** Paint colours for traffic cars (white and silver are the most common, as on Omani roads). */
@@ -105,6 +107,9 @@ export class TrafficMeshes {
   private readonly e = new Euler(0, 0, 0, 'YXZ');
   private readonly v = new Vector3();
   private readonly one = new Vector3(1, 1, 1);
+  /** The kit's models, one instanced mesh per kind, once loaded: each car is drawn by the mesh of its kind. */
+  private kinds: { mesh: InstancedMesh; slot: number[] }[] = [];
+  private kindOf: { kind: number; slot: number }[] = [];
   private readonly lit = { brake: new Color(0xff1a1a), dimBrake: new Color(0x3a0606), amber: new Color(0xffa000), dimAmber: new Color(0x3a2600) };
 
   constructor(cars: readonly TrafficCar[], people: readonly Pedestrian[]) {
@@ -157,6 +162,48 @@ export class TrafficMeshes {
     if (this.heads.instanceColor) this.heads.instanceColor.needsUpdate = true;
   }
 
+  /**
+   * Draw the cars as the kit's models (one kind per car, by its colour number):
+   * the drawn bodies are hidden, and the lamps become glows that show only when lit.
+   */
+  useModels(cars: readonly TrafficCar[], models: FittedCar[]): void {
+    if (models.length === 0) return;
+    const length = cars[0]?.length ?? 4.2;
+    const width = cars[0]?.width ?? 1.7;
+    this.kindOf = cars.map((c) => ({ kind: c.color % models.length, slot: 0 }));
+    this.kinds = models.map((m, k) => {
+      const parts: BufferGeometry[] = [m.body.clone()];
+      for (const z of [-length * 0.31, length * 0.3]) {
+        for (const [x, g] of [
+          [-(width / 2 - 0.2), m.wheelLeft],
+          [width / 2 - 0.2, m.wheelRight],
+        ] as const) {
+          parts.push(g.clone().translate(x, 0.3, z));
+        }
+      }
+      const members = this.kindOf.filter((o) => o.kind === k);
+      members.forEach((o, i) => (o.slot = i));
+      const mesh = new InstancedMesh(mergeGeometries(parts, false), m.material, Math.max(1, members.length));
+      mesh.count = members.length;
+      mesh.castShadow = true;
+      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      this.root.add(mesh);
+      return { mesh, slot: [] };
+    });
+    this.bodies.visible = false;
+    // Lamps: added light, so an unlit (black) lamp shows nothing over the model's own lamps.
+    for (const mesh of [this.brake, this.left, this.right]) {
+      const mat = mesh.material as MeshBasicMaterial;
+      mat.blending = AdditiveBlending;
+      mat.depthWrite = false;
+      mat.transparent = true;
+      mat.needsUpdate = true;
+    }
+    this.lit.dimBrake.set(0x000000);
+    this.lit.dimAmber.set(0x000000);
+  }
+
   /** Move every instance to where the traffic logic has put it. `time` drives the indicator flash. */
   update(cars: readonly TrafficCar[], people: readonly Pedestrian[], time: number): void {
     const flash = (time * 1.5) % 1 < 0.5;
@@ -166,6 +213,8 @@ export class TrafficMeshes {
       this.q.setFromEuler(this.e);
       this.m.compose(this.v.set(car.x, car.y, car.z), this.q, this.one);
       this.bodies.setMatrixAt(i, this.m);
+      const k = this.kindOf[i];
+      if (k) this.kinds[k.kind]!.mesh.setMatrixAt(k.slot, this.m);
       this.brake.setMatrixAt(i, this.m);
       this.left.setMatrixAt(i, this.m);
       this.right.setMatrixAt(i, this.m);
@@ -173,6 +222,7 @@ export class TrafficMeshes {
       this.left.setColorAt(i, car.indicator === 'left' && flash ? this.lit.amber : this.lit.dimAmber);
       this.right.setColorAt(i, car.indicator === 'right' && flash ? this.lit.amber : this.lit.dimAmber);
     }
+    for (const k of this.kinds) k.mesh.instanceMatrix.needsUpdate = true;
     for (const mesh of [this.bodies, this.brake, this.left, this.right]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh !== this.bodies && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

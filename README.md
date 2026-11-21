@@ -400,9 +400,13 @@ ripples and scrub in the sand; aggregate and repairs in the asphalt; framed
 windows that reflect the sky, some with blinds, some lit at night - over
 photographed sand, asphalt, plaster and paving with their relief (Poly
 Haven, CC0; `public/textures/CREDITS.md`, 1.4 MB in all). Fair-weather
-clouds. The car is a smooth saloon (`src/render/carBody.ts`) with
-clear-coat paint and glass reflecting the sky, and the traffic is the same
-shape. The map is cut into
+clouds. The cars are from Kenney's **Car Kit** (CC0;
+`public/models/cars/CREDITS.md`): a saloon for the player, and saloons,
+SUVs, taxis, vans and hatchbacks for traffic. The kit's cars are toys in
+proportion, so each body is stretched to its car's length, width, height
+and axles, keeping the wheel arches round (`src/render/kenneyCars.ts`);
+until they load (or if they cannot), the drawn saloon in
+`src/render/carBody.ts` stands in. The map is cut into
 200 m squares so what is behind the camera is skipped; how far you can see
 depends on the quality setting (650 m on low, up to 1.6 km on high).
 

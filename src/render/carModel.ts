@@ -12,6 +12,7 @@ import {
   type Texture,
 } from 'three';
 import { rimGeometry, sedanBody, tyreGeometry } from './carBody';
+import type { CarFit, FittedCar } from './kenneyCars';
 import type { VehicleTuning } from '../sim/tuning';
 
 export interface CarLights {
@@ -36,6 +37,10 @@ export interface CarModel {
   setMirrorTextures(left: Texture, centre: Texture, right: Texture): void;
   /** Reflections of the sky for paint, glass and chrome. */
   setEnvironment(env: Texture): void;
+  /** Swap the drawn body and wheels for a model (fitted to this car). */
+  useModel(model: FittedCar): void;
+  /** Where the body is, for fitting a model to it. */
+  fit: CarFit;
 }
 
 /** Driver's eye in the chassis frame (left-hand drive, as in Oman). */
@@ -77,7 +82,10 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   const lower = new Mesh(body.paint, paint);
   lower.castShadow = true;
   root.add(lower);
-  root.add(new Mesh(body.trim, trim));
+  const trimMesh = new Mesh(body.trim, trim);
+  root.add(trimMesh);
+  /** Drawn details that a model replaces. */
+  const extras: Mesh[] = [];
 
   // Cabin: the glass (and the roof painted over it), hidden from the driver's seat.
   const cabin = new Group();
@@ -96,11 +104,13 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     left: lamp(0xffa000, 0x7a4a10),
     right: lamp(0xffa000, 0x7a4a10),
   };
+  const lenses: Mesh[] = [];
   const lens = (mat: MeshStandardMaterial, x: number, y: number, z: number, sx: number, sy: number, yaw = 0) => {
     const m = new Mesh(new BoxGeometry(sx, sy, 0.05), mat);
     m.position.set(x, y, z);
     m.rotation.y = yaw;
     root.add(m);
+    lenses.push(m);
   };
   const lift = beltLine - bottom;
   for (const side of [-1, 1]) {
@@ -115,6 +125,7 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   const strip = new Mesh(new BoxGeometry(w * 0.38, 0.025, 0.02), chrome);
   strip.position.set(0, bottom + lift * 0.74, rear + 0.05);
   root.add(strip);
+  extras.push(strip);
   const plateMat = new MeshStandardMaterial({ color: 0xf4f1e6, roughness: 0.5 });
   for (const [zz, y] of [
     [front - 0.07, bottom + lift * 0.36],
@@ -123,15 +134,18 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     const plate = new Mesh(new BoxGeometry(0.42, 0.11, 0.02), plateMat);
     plate.position.set(0, y, zz);
     root.add(plate);
+    extras.push(plate);
   }
 
   // Door mirrors and the interior mirror; their faces show the mirror cameras' pictures.
   const mirrorFace = () => new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color: 0x8899aa }));
   const mirrors = { left: mirrorFace(), centre: mirrorFace(), right: mirrorFace() };
+  const housings: Mesh[] = [];
   for (const side of [-1, 1] as const) {
     const housing = new Mesh(new BoxGeometry(0.2, 0.13, 0.08), paint);
     housing.position.set(side * (w / 2 * 0.95 + 0.07), beltLine + 0.06, front + length * 0.355);
     root.add(housing);
+    housings.push(housing);
     const face = side < 0 ? mirrors.left : mirrors.right;
     face.scale.set(0.17, 0.1, 1);
     // Faces look backwards (+Z), angled slightly towards the driver.
@@ -193,12 +207,22 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     wheels.push({ steer, spin });
   }
 
+  const lit = { overlay: false, last: { brake: false, reverse: false, left: false, right: false, head: false } as CarLights };
   const setLights = (l: CarLights): void => {
+    lit.last = l;
     mats.brake.emissiveIntensity = l.brake ? 2.2 : 0.25;
     mats.reverse.emissiveIntensity = l.reverse ? 1.6 : 0;
     mats.left.emissiveIntensity = l.left ? 2.4 : 0.1;
     mats.right.emissiveIntensity = l.right ? 2.4 : 0.1;
     mats.head.emissiveIntensity = l.head ? 2 : 0.15;
+    // Over a model, a lamp is only drawn while it is lit (the model has its own lamps).
+    if (lit.overlay) {
+      mats.brake.opacity = l.brake ? 1 : 0;
+      mats.reverse.opacity = l.reverse ? 1 : 0;
+      mats.left.opacity = l.left ? 1 : 0;
+      mats.right.opacity = l.right ? 1 : 0;
+      mats.head.opacity = l.head ? 0.9 : 0;
+    }
   };
   setLights({ brake: false, reverse: false, left: false, right: false, head: false });
 
@@ -226,5 +250,45 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     }
   };
 
-  return { root, wheels, cabin, interior, steeringWheel, mirrors, setLights, setMirrorTextures, setEnvironment };
+  const fit: CarFit = {
+    front,
+    rear,
+    frontAxle: -toFront,
+    rearAxle: toRear,
+    width: w,
+    ground: -chassis.comHeight,
+    roof,
+  };
+  const useModel = (model: FittedCar): void => {
+    // The drawn body, glass, trim, lamps and plates go; the lamps' glow stays, laid over the model's own lamps.
+    lower.visible = false;
+    trimMesh.visible = false;
+    glasshouse.visible = false;
+    for (const m of extras) m.visible = false;
+    // The model has its own door mirrors: ours are seen only from the driver's seat (their pictures).
+    for (const h of housings) h.visible = false;
+    for (const face of [mirrors.left, mirrors.right]) {
+      root.remove(face);
+      interior.add(face);
+    }
+    const kit = new Mesh(model.body, model.material);
+    kit.castShadow = true;
+    kit.receiveShadow = true;
+    // From the driver's seat the body is hidden, as the cabin was.
+    cabin.add(kit);
+    wheels.forEach((w, i) => {
+      w.spin.clear();
+      const m = new Mesh(i % 2 === 0 ? model.wheelLeft : model.wheelRight, model.material);
+      m.castShadow = true;
+      w.spin.add(m);
+    });
+    for (const mat of Object.values(mats)) {
+      mat.transparent = true;
+      mat.depthWrite = false;
+    }
+    lit.overlay = true;
+    setLights(lit.last);
+  };
+
+  return { root, wheels, cabin, interior, steeringWheel, mirrors, setLights, setMirrorTextures, setEnvironment, useModel, fit };
 }
