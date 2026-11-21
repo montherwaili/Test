@@ -116,7 +116,7 @@ export class TrafficMeshes {
 
     this.bodies = new InstancedMesh(
       carGeometry(length, width),
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.15 }),
+      new MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.15, side: DoubleSide }),
       count,
     );
     this.bodies.castShadow = true;

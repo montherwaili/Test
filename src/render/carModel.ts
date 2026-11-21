@@ -3,6 +3,7 @@ import {
   BoxGeometry,
   Group,
   Mesh,
+  DoubleSide,
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
@@ -54,7 +55,7 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
 
   // Paint with a clear coat, tinted glass and chrome reflect the sky (setEnvironment).
   const paint = new MeshPhysicalMaterial({ color: 0xeeeeea, roughness: 0.32, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.06 });
-  const glass = new MeshPhysicalMaterial({ color: 0x050607, roughness: 0.04, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 });
+  const glass = new MeshPhysicalMaterial({ color: 0x07090b, roughness: 0.15, metalness: 0, side: DoubleSide });
   const trim = new MeshStandardMaterial({ color: 0x17181a, roughness: 0.6 });
   const tyre = new MeshStandardMaterial({ color: 0x151515, roughness: 0.92 });
   const rim = new MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.25, metalness: 0.85 });
@@ -103,20 +104,21 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   };
   const lift = beltLine - bottom;
   for (const side of [-1, 1]) {
-    lens(mats.head, side * w * 0.33, bottom + lift * 0.72, front + 0.1, 0.34, 0.09, side * 0.25);
-    lens(side < 0 ? mats.left : mats.right, side * w * 0.43, bottom + lift * 0.72, front + 0.17, 0.08, 0.06, side * 0.7);
-    lens(mats.brake, side * w * 0.33, bottom + lift * 0.8, rear - 0.08, 0.36, 0.1, -side * 0.2);
-    lens(mats.reverse, side * w * 0.17, bottom + lift * 0.8, rear - 0.05, 0.1, 0.07);
-    lens(side < 0 ? mats.left : mats.right, side * w * 0.44, bottom + lift * 0.8, rear - 0.13, 0.07, 0.07, -side * 0.6);
+    // On the faces of the nose and tail (the body's rounded edges stand 6 cm proud of its outline).
+    lens(mats.head, side * w * 0.31, bottom + lift * 0.62, front - 0.045, 0.4, 0.11);
+    lens(side < 0 ? mats.left : mats.right, side * w * 0.44, bottom + lift * 0.62, front - 0.03, 0.1, 0.08);
+    lens(mats.brake, side * w * 0.32, bottom + lift * 0.74, rear + 0.045, 0.42, 0.12);
+    lens(mats.reverse, side * w * 0.12, bottom + lift * 0.74, rear + 0.045, 0.1, 0.08);
+    lens(side < 0 ? mats.left : mats.right, side * w * 0.44, bottom + lift * 0.62, rear + 0.035, 0.09, 0.08);
   }
   // A chrome strip across the boot, and the number plates.
   const strip = new Mesh(new BoxGeometry(w * 0.38, 0.025, 0.02), chrome);
-  strip.position.set(0, bottom + lift * 0.8, rear - 0.03);
+  strip.position.set(0, bottom + lift * 0.74, rear + 0.05);
   root.add(strip);
   const plateMat = new MeshStandardMaterial({ color: 0xf4f1e6, roughness: 0.5 });
   for (const [zz, y] of [
-    [front - 0.012, bottom + lift * 0.32],
-    [rear + 0.012, bottom + lift * 0.5],
+    [front - 0.07, bottom + lift * 0.36],
+    [rear + 0.065, bottom + lift * 0.46],
   ] as const) {
     const plate = new Mesh(new BoxGeometry(0.42, 0.11, 0.02), plateMat);
     plate.position.set(0, y, zz);
@@ -219,7 +221,7 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
   const setEnvironment = (env: Texture): void => {
     for (const m of [paint, glass, rim, chrome]) {
       m.envMap = env;
-      m.envMapIntensity = m === glass ? 1 : m === paint ? 0.9 : 1;
+      m.envMapIntensity = m === glass ? 0.2 : m === paint ? 0.9 : 1;
       m.needsUpdate = true;
     }
   };
