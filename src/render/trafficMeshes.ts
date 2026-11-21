@@ -108,8 +108,9 @@ export class TrafficMeshes {
   private readonly v = new Vector3();
   private readonly one = new Vector3(1, 1, 1);
   /** The kit's models, one instanced mesh per kind, once loaded: each car is drawn by the mesh of its kind. */
-  private kinds: { mesh: InstancedMesh; slot: number[] }[] = [];
+  private kinds: { mesh: InstancedMesh; slot: number[]; lamps?: { brake: InstancedMesh; left: InstancedMesh; right: InstancedMesh } }[] = [];
   private kindOf: { kind: number; slot: number }[] = [];
+  private readonly black = new Color(0x000000);
   private readonly lit = { brake: new Color(0xff1a1a), dimBrake: new Color(0x3a0606), amber: new Color(0xffa000), dimAmber: new Color(0x3a2600) };
 
   constructor(cars: readonly TrafficCar[], people: readonly Pedestrian[]) {
@@ -189,9 +190,21 @@ export class TrafficMeshes {
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       mesh.frustumCulled = false;
       this.root.add(mesh);
-      return { mesh, slot: [] };
+      // The lamps: the model's own lamp faces, glowing (added light) when lit.
+      const lampMesh = (g: BufferGeometry) => {
+        const lm = new InstancedMesh(g, new MeshBasicMaterial({ blending: AdditiveBlending, depthWrite: false, transparent: true, side: DoubleSide }), Math.max(1, members.length));
+        lm.count = members.length;
+        lm.instanceMatrix.setUsage(DynamicDrawUsage);
+        lm.frustumCulled = false;
+        for (let i = 0; i < Math.max(1, members.length); i++) lm.setColorAt(i, new Color(0x000000));
+        lm.renderOrder = 2;
+        this.root.add(lm);
+        return lm;
+      };
+      return { mesh, slot: [], lamps: { brake: lampMesh(m.lamps.tail), left: lampMesh(m.lamps.left), right: lampMesh(m.lamps.right) } };
     });
     this.bodies.visible = false;
+    this.brake.visible = this.left.visible = this.right.visible = false;
     // Lamps: added light, so an unlit (black) lamp shows nothing over the model's own lamps.
     for (const mesh of [this.brake, this.left, this.right]) {
       const mat = mesh.material as MeshBasicMaterial;
@@ -214,7 +227,19 @@ export class TrafficMeshes {
       this.m.compose(this.v.set(car.x, car.y, car.z), this.q, this.one);
       this.bodies.setMatrixAt(i, this.m);
       const k = this.kindOf[i];
-      if (k) this.kinds[k.kind]!.mesh.setMatrixAt(k.slot, this.m);
+      if (k) {
+        const kind = this.kinds[k.kind]!;
+        kind.mesh.setMatrixAt(k.slot, this.m);
+        if (kind.lamps) {
+          const { brake, left, right } = kind.lamps;
+          brake.setMatrixAt(k.slot, this.m);
+          left.setMatrixAt(k.slot, this.m);
+          right.setMatrixAt(k.slot, this.m);
+          brake.setColorAt(k.slot, car.braking || car.speed < 0.1 ? this.lit.brake : this.black);
+          left.setColorAt(k.slot, car.indicator === 'left' && flash ? this.lit.amber : this.black);
+          right.setColorAt(k.slot, car.indicator === 'right' && flash ? this.lit.amber : this.black);
+        }
+      }
       this.brake.setMatrixAt(i, this.m);
       this.left.setMatrixAt(i, this.m);
       this.right.setMatrixAt(i, this.m);
@@ -222,7 +247,15 @@ export class TrafficMeshes {
       this.left.setColorAt(i, car.indicator === 'left' && flash ? this.lit.amber : this.lit.dimAmber);
       this.right.setColorAt(i, car.indicator === 'right' && flash ? this.lit.amber : this.lit.dimAmber);
     }
-    for (const k of this.kinds) k.mesh.instanceMatrix.needsUpdate = true;
+    for (const k of this.kinds) {
+      k.mesh.instanceMatrix.needsUpdate = true;
+      if (k.lamps) {
+        for (const lm of [k.lamps.brake, k.lamps.left, k.lamps.right]) {
+          lm.instanceMatrix.needsUpdate = true;
+          if (lm.instanceColor) lm.instanceColor.needsUpdate = true;
+        }
+      }
+    }
     for (const mesh of [this.bodies, this.brake, this.left, this.right]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh !== this.bodies && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

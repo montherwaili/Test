@@ -11,7 +11,7 @@
  * Models face +Z in the kit; the game's cars face -Z.
  */
 import { loadKit } from './kitGltf';
-import { BufferGeometry, DoubleSide, Material, Matrix4, MeshStandardMaterial, SRGBColorSpace, TextureLoader, type Texture } from 'three';
+import { BufferAttribute, BufferGeometry, DoubleSide, Material, Matrix4, MeshStandardMaterial, SRGBColorSpace, TextureLoader, Vector3, type Texture } from 'three';
 
 /** A car's measurements in its own frame (facing -Z, origin anywhere). */
 export interface CarFit {
@@ -34,6 +34,8 @@ export interface FittedCar {
   wheelLeft: BufferGeometry;
   wheelRight: BufferGeometry;
   material: Material;
+  /** The model's own lamps, lifted a hair off the body, to glow when lit. */
+  lamps: { head: BufferGeometry; tail: BufferGeometry; left: BufferGeometry; right: BufferGeometry };
 }
 
 interface RawCar {
@@ -134,10 +136,78 @@ export async function fittedCar(name: string, fit: CarFit): Promise<FittedCar> {
     g.applyMatrix4(new Matrix4().makeRotationY(Math.PI));
     return g;
   };
-  return { body, wheelLeft: wheel('wheel-front-left'), wheelRight: wheel('wheel-front-right'), material: r.material };
+  return { body, wheelLeft: wheel('wheel-front-left'), wheelRight: wheel('wheel-front-right'), material: r.material, lamps: lampsOf(body, r.material) };
 }
 
 /** The texture the kit's models share (for traffic, which merges them). */
 export function kitTexture(m: Material): Texture | null {
   return (m as MeshStandardMaterial).map ?? null;
+}
+
+let paletteData: ImageData | null = null;
+
+/** The colour atlas's pixels (read once), to tell the lamps from the paint. */
+function palette(m: Material): ImageData | null {
+  if (paletteData) return paletteData;
+  const img = (m as MeshStandardMaterial).map?.image as CanvasImageSource & { width: number; height: number } | undefined;
+  if (!img || !img.width) return null;
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  const ctx = c.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0);
+  paletteData = ctx.getImageData(0, 0, c.width, c.height);
+  return paletteData;
+}
+
+/**
+ * The model's lamps: its faces painted lamp yellow (headlamps) or lamp red
+ * (tail lamps), copied and lifted 6 mm off the body along their normals.
+ * The indicators flash the outer half of each side's lamps.
+ */
+function lampsOf(body: BufferGeometry, material: Material): FittedCar['lamps'] {
+  const head: number[] = [];
+  const tail: number[] = [];
+  const left: number[] = [];
+  const right: number[] = [];
+  const pal = palette(material);
+  const pos = body.attributes['position']!;
+  const uv = body.attributes['uv'];
+  const index = body.index;
+  if (pal && uv) {
+    const count = index ? index.count : pos.count;
+    const a = new Vector3();
+    const b = new Vector3();
+    const c = new Vector3();
+    const n = new Vector3();
+    for (let t = 0; t < count; t += 3) {
+      const ia = index ? index.getX(t) : t;
+      const ib = index ? index.getX(t + 1) : t + 1;
+      const ic = index ? index.getX(t + 2) : t + 2;
+      const u = (uv.getX(ia) + uv.getX(ib) + uv.getX(ic)) / 3;
+      const v = (uv.getY(ia) + uv.getY(ib) + uv.getY(ic)) / 3;
+      const px = Math.min(pal.width - 1, Math.max(0, Math.floor(u * pal.width)));
+      const py = Math.min(pal.height - 1, Math.max(0, Math.floor(v * pal.height)));
+      const o = (py * pal.width + px) * 4;
+      const [r, g, bl] = [pal.data[o]!, pal.data[o + 1]!, pal.data[o + 2]!];
+      const yellow = r > 220 && g > 170 && bl < 120;
+      const red = r > 200 && g < 90 && bl < 90;
+      if (!yellow && !red) continue;
+      a.fromBufferAttribute(pos, ia);
+      b.fromBufferAttribute(pos, ib);
+      c.fromBufferAttribute(pos, ic);
+      n.subVectors(c, b).cross(new Vector3().subVectors(a, b)).normalize().multiplyScalar(0.006);
+      const tri = [a, b, c].flatMap((p) => [p.x + n.x, p.y + n.y, p.z + n.z]);
+      (yellow ? head : tail).push(...tri);
+      const x = (a.x + b.x + c.x) / 3;
+      (x < 0 ? left : right).push(...tri);
+    }
+  }
+  const geo = (arr: number[]) => {
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(new Float32Array(arr), 3));
+    return g;
+  };
+  return { head: geo(head), tail: geo(tail), left: geo(left), right: geo(right) };
 }

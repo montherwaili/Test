@@ -3,7 +3,7 @@
  * people. Low in triangles (there are hundreds of them), but shaped like the
  * real thing rather than stacked primitives.
  */
-import { BufferAttribute, BufferGeometry, CylinderGeometry, LatheGeometry, SphereGeometry, Vector2 } from 'three';
+import { BufferAttribute, BufferGeometry, CircleGeometry, CylinderGeometry, LatheGeometry, SphereGeometry, Vector2 } from 'three';
 
 /** One coloured piece of a prop. */
 export interface Part {
@@ -97,25 +97,62 @@ export function datePalm(height: number, radius: number, seed: number, lite = fa
 }
 
 /** A street lamp: a tapered pole, an arm reaching over the road along +X, and the lamp under its end. */
+/**
+ * A street lamp: a tapered octagonal pole on a base, an arm that curves out
+ * over the road (along +X), and a flat cobra-head lamp at its end with the
+ * glass underneath.
+ */
 export function streetLamp(height: number, reach: number): { body: BufferGeometry; lamp: BufferGeometry } {
-  const pole = new CylinderGeometry(0.06, 0.1, height, 6);
+  const parts: BufferGeometry[] = [];
+  const base = new CylinderGeometry(0.16, 0.2, 0.5, 8);
+  base.translate(0, 0.25, 0);
+  parts.push(base);
+  const pole = new CylinderGeometry(0.055, 0.1, height, 8);
   pole.translate(0, height / 2, 0);
-  const arm = new CylinderGeometry(0.04, 0.04, reach, 5);
-  arm.rotateZ(Math.PI / 2 - 0.12);
-  arm.translate(reach / 2, height + 0.1, 0);
-  const lamp = new CylinderGeometry(0.22, 0.28, 0.12, 8);
-  lamp.translate(reach, height + 0.12, 0);
+  parts.push(pole);
+  // The arm: a quarter bend out of the top of the pole, then nearly level to the lamp.
+  const bendR = 0.6;
+  const steps = 6;
+  let prev: [number, number] = [0, height];
+  const piece = (a: [number, number], b: [number, number]) => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const g = new CylinderGeometry(0.045, 0.05, len + 0.02, 6);
+    g.rotateZ(-Math.atan2(b[0] - a[0], b[1] - a[1]));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 0);
+    parts.push(g);
+  };
+  for (let i = 1; i <= steps; i++) {
+    const t = (i / steps) * (Math.PI / 2) * 0.9;
+    const p: [number, number] = [bendR - bendR * Math.cos(t), height + bendR * Math.sin(t)];
+    piece(prev, p);
+    prev = p;
+  }
+  piece(prev, [reach - 0.3, prev[1] + 0.08]);
+  // The head: a long, flat shell.
+  const head = new SphereGeometry(0.5, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  head.scale(1, 0.22, 0.42);
+  head.translate(reach, prev[1] + 0.06, 0);
+  parts.push(head);
   const strip = (g: BufferGeometry) => {
-    g.deleteAttribute('uv');
+    if (g.attributes['uv']) g.deleteAttribute('uv');
     return g.index ? g.toNonIndexed() : g;
   };
+  const arrays = parts.map((g) => strip(g).attributes['position']!.array as Float32Array);
   const body = new BufferGeometry();
-  const a = strip(pole);
-  const b = strip(arm);
-  const merged = new Float32Array([...(a.attributes['position']!.array as Float32Array), ...(b.attributes['position']!.array as Float32Array)]);
+  const merged = new Float32Array(arrays.reduce((n, a) => n + a.length, 0));
+  let o = 0;
+  for (const a of arrays) {
+    merged.set(a, o);
+    o += a.length;
+  }
   body.setAttribute('position', new BufferAttribute(merged, 3));
   body.computeVertexNormals();
-  return { body, lamp: strip(lamp) };
+  // The glass: an oval under the head, facing down.
+  const glass = new CircleGeometry(0.42, 14);
+  glass.rotateX(Math.PI / 2);
+  glass.scale(1, 1, 0.38 / 0.42);
+  glass.translate(reach, prev[1] + 0.05, 0);
+  return { body, lamp: strip(glass) };
 }
 
 /**

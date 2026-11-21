@@ -7,6 +7,7 @@
 import {
   AdditiveBlending,
   BoxGeometry,
+  CanvasTexture,
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
@@ -361,6 +362,23 @@ function addBuilding(batch: Adder, s: Extract<SolidDef, { shape: 'box' }>, rnd: 
   }
 }
 
+let haloTex: CanvasTexture | null = null;
+/** A soft round glow, bright in the middle. */
+function haloTexture(): CanvasTexture {
+  if (haloTex) return haloTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  haloTex = new CanvasTexture(c);
+  return haloTex;
+}
+
 function addPalm(batch: Adder, x: number, z: number, height: number, radius: number, lite = false): void {
   const seed = Math.round(x * 13.7 + z * 7.3);
   for (const part of datePalm(height, radius, seed, lite)) batch.add(part.geometry, part.color, x, 0, z, (seed % 628) / 100);
@@ -554,7 +572,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
       const across = Math.abs(((x - r.from[0]) * -dz + (z - r.from[1]) * dx) / len);
       return along >= 0 && along <= len && across <= r.width / 2;
     });
-  const lamp = streetLamp(7.5, 1.8);
+  const lamp = streetLamp(8, 2.2);
   for (const sd of def.solids) {
     if (sd.shape !== 'box' || sd.kind !== 'kerb') continue;
     const [sx, , sz] = sd.size;
@@ -580,7 +598,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
       const pool = new CircleGeometry(7, 16);
       pool.deleteAttribute('uv');
       pool.rotateX(-Math.PI / 2);
-      pool.translate(x + Math.cos(yaw) * 1.8, 0.03, z - Math.sin(yaw) * 1.8);
+      pool.translate(x + Math.cos(yaw) * 2.2, 0.03, z - Math.sin(yaw) * 2.2);
       lampPools.push(pool);
     }
   }
@@ -632,28 +650,55 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   // --- traffic signals --------------------------------------------------------------
   const lampMaterials = new Map<string, Record<SignalState, MeshStandardMaterial>>();
-  const lampGeo = new CircleGeometry(0.12, 12);
+  const lampGeo = new CircleGeometry(0.115, 20);
   const lampGroups = new Map<string, Record<SignalState, BufferGeometry[]>>();
+  /** Soft halos round the lamps, lit with them. */
+  const haloGroups = new Map<string, Record<SignalState, BufferGeometry[]>>();
+  const haloGeo = new CircleGeometry(0.34, 20);
   for (const h of def.signalHeads ?? []) {
     const rad = (h.facingDeg * Math.PI) / 180;
     const a = Math.PI - rad;
     const nx = Math.sin(rad);
     const nz = -Math.cos(rad);
-    solid.add(new CylinderGeometry(0.07, 0.09, SIGNAL_HEIGHT, 8), COLORS.metal, h.x, SIGNAL_HEIGHT / 2, h.z);
-    solid.add(new BoxGeometry(0.42, 1.15, 0.3), COLORS.housing, h.x, SIGNAL_HEIGHT + 0.1, h.z, a);
+    const place = (g: BufferGeometry, out: number, y: number) => g.applyMatrix4(new Matrix4().makeRotationY(a).setPosition(h.x + nx * out, y, h.z + nz * out));
+    // A galvanised pole on a base, and a yellow-backed housing with a black face.
+    solid.add(new CylinderGeometry(0.075, 0.085, SIGNAL_HEIGHT - 0.4, 10), 0x9aa0a6, h.x, (SIGNAL_HEIGHT - 0.4) / 2, h.z);
+    solid.add(new CylinderGeometry(0.16, 0.18, 0.25, 10), 0x8a8f95, h.x, 0.125, h.z);
+    solid.add(new BoxGeometry(0.5, 1.28, 0.06), 0xe2b322, h.x - nx * 0.02, SIGNAL_HEIGHT + 0.1, h.z - nz * 0.02, a);
+    solid.add(new BoxGeometry(0.36, 1.1, 0.26), COLORS.housing, h.x + nx * 0.11, SIGNAL_HEIGHT + 0.1, h.z + nz * 0.11, a);
     const key = `${h.junction}|${h.group}`;
     let geos = lampGroups.get(key);
     if (!geos) lampGroups.set(key, (geos = { red: [], amber: [], green: [] }));
+    let halos = haloGroups.get(key);
+    if (!halos) haloGroups.set(key, (halos = { red: [], amber: [], green: [] }));
     LAMP_ORDER.forEach((state, i) => {
-      const g = lampGeo.clone();
-      g.applyMatrix4(new Matrix4().makeRotationY(a).setPosition(h.x + nx * 0.16, SIGNAL_HEIGHT + 0.46 - i * 0.36, h.z + nz * 0.16));
-      geos![state].push(g);
+      const y = SIGNAL_HEIGHT + 0.46 - i * 0.36;
+      geos![state].push(place(lampGeo.clone(), 0.245, y));
+      halos![state].push(place(haloGeo.clone(), 0.25, y));
+      // A visor over each lamp.
+      const visor = new CylinderGeometry(0.15, 0.15, 0.16, 12, 1, true, -Math.PI / 2, Math.PI);
+      visor.rotateX(Math.PI / 2);
+      visor.rotateY(a);
+      solid.add(visor, COLORS.housing, h.x + nx * 0.32, y + 0.02, h.z + nz * 0.32);
     });
+  }
+  const haloMaterials = new Map<string, Record<SignalState, MeshBasicMaterial>>();
+  for (const [key, geos] of haloGroups) {
+    const mats = {} as Record<SignalState, MeshBasicMaterial>;
+    for (const state of LAMP_ORDER) {
+      const map = haloTexture();
+      const mat = new MeshBasicMaterial({ color: LAMP_COLORS[state], map, transparent: true, depthWrite: false, blending: AdditiveBlending, opacity: 0 });
+      mats[state] = mat;
+      const mesh = new Mesh(mergeGeometries(geos[state], false), mat);
+      mesh.renderOrder = 3;
+      root.add(mesh);
+    }
+    haloMaterials.set(key, mats);
   }
   for (const [key, geos] of lampGroups) {
     const mats = {} as Record<SignalState, MeshStandardMaterial>;
     for (const state of LAMP_ORDER) {
-      const mat = new MeshStandardMaterial({ color: 0x111111, emissive: LAMP_COLORS[state], emissiveIntensity: 0.05, side: DoubleSide });
+      const mat = new MeshStandardMaterial({ color: 0x0c0c0c, emissive: LAMP_COLORS[state], emissiveIntensity: 0.06, roughness: 0.2, side: DoubleSide });
       mats[state] = mat;
       root.add(new Mesh(mergeGeometries(geos[state], false), mat));
     }
@@ -663,7 +708,9 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     for (const [key, mats] of lampMaterials) {
       const [junction, group] = key.split('|') as [string, string];
       const now = stateOf(junction, group);
-      for (const state of LAMP_ORDER) mats[state].emissiveIntensity = state === now ? 3 : 0.05;
+      for (const state of LAMP_ORDER) mats[state].emissiveIntensity = state === now ? 5 : 0.06;
+      const halos = haloMaterials.get(key);
+      if (halos) for (const state of LAMP_ORDER) halos[state].opacity = state === now ? 0.55 : 0;
     }
   };
 
@@ -699,7 +746,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   }
 
   let poolMesh: Mesh | null = null;
-  const lampGlass = new MeshStandardMaterial({ color: 0xdddddd, emissive: 0xffd9a0, emissiveIntensity: 0.05, roughness: 0.4 });
+  const lampGlass = new MeshStandardMaterial({ color: 0xe8e6df, emissive: 0xffd9a0, emissiveIntensity: 0.05, roughness: 0.3, side: DoubleSide });
   if (lampHeads.length > 0) root.add(new Mesh(mergeGeometries(lampHeads, false), lampGlass));
   // Pools of lamplight: added on top of the ground, brightest under the lamp, fading out.
   const poolMaterial = new ShaderMaterial({
@@ -777,7 +824,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     paintMaterials.push({ material, day: MARKING_COLORS[color] });
   }
   const setNight: MapMeshes['setNight'] = (night) => {
-    for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.35 : 1);
+    for (const p of paintMaterials) p.material.color.set(p.day).multiplyScalar(night ? 0.12 : 1);
     lampGlass.emissiveIntensity = night ? 3 : 0.05;
     poolMaterial.uniforms.uStrength!.value = night ? 0.32 : 0;
     if (poolMesh) poolMesh.visible = night;

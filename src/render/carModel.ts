@@ -1,6 +1,7 @@
 /** The player's car: a smooth saloon body (carBody.ts), sized from the tuning file. */
 import {
   BoxGeometry,
+  CylinderGeometry,
   Group,
   Mesh,
   DoubleSide,
@@ -9,6 +10,8 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   TorusGeometry,
+  Vector3,
+  type BufferGeometry,
   type Texture,
 } from 'three';
 import { rimGeometry, sedanBody, tyreGeometry } from './carBody';
@@ -154,38 +157,82 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     root.add(face);
   }
 
-  // Interior, as seen from the driver's seat.
+  // Interior, as seen from the driver's seat: laid out round the driver's eye.
   const interior = new Group();
-  // Kept lower and slimmer than a real dashboard so more of the road shows.
-  const dash = new Mesh(new BoxGeometry(w * 0.9, 0.18, 0.46), trim);
-  dash.position.set(0, beltLine - 0.06, DRIVER_EYE.z - 0.8);
-  interior.add(dash);
-  const cowl = new Mesh(new BoxGeometry(0.38, 0.07, 0.18), trim);
-  cowl.position.set(DRIVER_EYE.x, beltLine + 0.06, DRIVER_EYE.z - 0.68);
-  interior.add(cowl);
-  for (const side of [-1, 1]) {
-    const pillar = new Mesh(new BoxGeometry(0.05, 0.7, 0.05), trim);
-    pillar.position.set(side * w * 0.43, beltLine + 0.32, DRIVER_EYE.z - 0.86);
-    pillar.rotation.x = 0.55;
-    pillar.rotation.z = side * -0.12;
-    interior.add(pillar);
-  }
-  const header = new Mesh(new BoxGeometry(w * 0.8, 0.03, 0.1), trim);
-  header.position.set(0, roof - 0.015, DRIVER_EYE.z - 0.42);
+  const E = DRIVER_EYE;
+  const plastic = new MeshStandardMaterial({ color: 0x2a2b2f, roughness: 0.85 });
+  const lining = new MeshStandardMaterial({ color: 0xe2ded6, emissive: 0x3a3833, roughness: 0.95, side: DoubleSide });
+  const doorTrim = new MeshStandardMaterial({ color: 0x3b3c41, roughness: 0.8 });
+  // Where the windscreen meets the roof and the dashboard.
+  const screenTop = { y: roof - 0.03, z: E.z - 0.55 };
+  const screenFoot = { y: beltLine + 0.08, z: E.z - 1.05 };
+  const pillarX = w * 0.43;
+  // The roof lining, from the top of the windscreen back over the head.
+  const headliner = new Mesh(new PlaneGeometry(pillarX * 2 + 0.1, 1.5), lining);
+  headliner.rotation.x = Math.PI / 2;
+  headliner.position.set(0, screenTop.y + 0.01, screenTop.z + 0.75);
+  interior.add(headliner);
+  const header = new Mesh(new BoxGeometry(pillarX * 2, 0.03, 0.05), plastic);
+  header.position.set(0, screenTop.y, screenTop.z);
   interior.add(header);
+  // A pillars along the windscreen's sides, and the door tops beneath the side windows.
+  const strut = (from: Vector3, to: Vector3, thick: number) => {
+    const m = new Mesh(new BoxGeometry(thick, thick * 0.75, from.distanceTo(to)), plastic);
+    m.position.copy(from).add(to).multiplyScalar(0.5);
+    m.lookAt(to);
+    interior.add(m);
+  };
+  for (const side of [-1, 1]) {
+    strut(new Vector3(side * (pillarX + 0.03), screenFoot.y, screenFoot.z), new Vector3(side * (pillarX - 0.03), screenTop.y, screenTop.z), 0.07);
+    const door = new Mesh(new BoxGeometry(0.08, 0.32, 1.6), doorTrim);
+    door.position.set(side * (pillarX + 0.02), beltLine - 0.11, E.z - 0.25);
+    interior.add(door);
+    const sill = new Mesh(new BoxGeometry(0.1, 0.025, 1.6), plastic);
+    sill.position.set(side * (pillarX + 0.02), beltLine + 0.06, E.z - 0.25);
+    interior.add(sill);
+  }
+  // The dashboard: a broad top under the windscreen, and a hood over the instruments.
+  const dash = new Mesh(new BoxGeometry(pillarX * 2 + 0.05, 0.16, 0.5), plastic);
+  dash.position.set(0, screenFoot.y - 0.09, screenFoot.z + 0.24);
+  interior.add(dash);
+  const dashFace = new Mesh(new BoxGeometry(pillarX * 2, 0.22, 0.05), doorTrim);
+  dashFace.position.set(0, screenFoot.y - 0.25, screenFoot.z + 0.48);
+  interior.add(dashFace);
+  // A low hood over the instruments, in front of the driver.
+  const hood = new Mesh(new BoxGeometry(0.42, 0.07, 0.2), plastic);
+  hood.position.set(E.x, screenFoot.y + 0.02, screenFoot.z + 0.42);
+  interior.add(hood);
   const steeringWheel = new Group();
-  const wheelRim = new Mesh(new TorusGeometry(0.17, 0.018, 6, 20), trim);
-  const spoke = new Mesh(new BoxGeometry(0.32, 0.03, 0.02), trim);
-  const spoke2 = new Mesh(new BoxGeometry(0.03, 0.16, 0.02), trim);
-  spoke2.position.y = -0.085;
-  steeringWheel.add(wheelRim, spoke, spoke2);
-  steeringWheel.position.set(DRIVER_EYE.x, beltLine - 0.02, DRIVER_EYE.z - 0.5);
+  const leather = new MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.6 });
+  const wheelRim = new Mesh(new TorusGeometry(0.18, 0.022, 10, 36), leather);
+  const hub = new Mesh(new CylinderGeometry(0.06, 0.07, 0.05, 16), leather);
+  hub.rotation.x = Math.PI / 2;
+  const spokeL = new Mesh(new BoxGeometry(0.13, 0.035, 0.02), leather);
+  spokeL.position.set(-0.11, -0.01, 0);
+  const spokeR = spokeL.clone();
+  spokeR.position.x = 0.11;
+  const spokeD = new Mesh(new BoxGeometry(0.035, 0.12, 0.02), leather);
+  spokeD.position.y = -0.1;
+  steeringWheel.add(wheelRim, hub, spokeL, spokeR, spokeD);
+  steeringWheel.position.set(E.x, beltLine - 0.02, E.z - 0.5);
   steeringWheel.rotation.x = -0.35;
   interior.add(steeringWheel);
-  mirrors.centre.scale.set(0.24, 0.07, 1);
-  mirrors.centre.position.set(0, roof - 0.13, DRIVER_EYE.z - 0.52);
+  // The interior mirror hangs from the top of the windscreen.
+  mirrors.centre.scale.set(0.2, 0.06, 1);
+  mirrors.centre.position.set(0, screenTop.y - 0.09, screenTop.z + 0.05);
   mirrors.centre.rotation.y = -0.3;
-  interior.add(mirrors.centre);
+  const centreHousing = new Mesh(new BoxGeometry(0.22, 0.075, 0.03), plastic);
+  centreHousing.position.set(0, screenTop.y - 0.09, screenTop.z + 0.03);
+  centreHousing.rotation.y = -0.3;
+  interior.add(centreHousing, mirrors.centre);
+  // The door mirrors stand outside, just behind the foot of each A pillar, at the window line
+  // (the mirror cameras are placed from these, so the pictures match).
+  housings.forEach((housing, k) => {
+    const side = k === 0 ? -1 : 1;
+    const face = side < 0 ? mirrors.left : mirrors.right;
+    face.position.set(side * (w / 2 + 0.12), beltLine + 0.12, screenFoot.z + 0.16);
+    housing.position.set(face.position.x, face.position.y, face.position.z - 0.045);
+  });
   interior.visible = false;
   root.add(interior);
 
@@ -217,7 +264,8 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     mats.head.emissiveIntensity = l.head ? 2 : 0.15;
     // Over a model, a lamp is only drawn while it is lit (the model has its own lamps).
     if (lit.overlay) {
-      mats.brake.opacity = l.brake ? 1 : 0;
+      // The tail lamps: brighter when braking, and on with the headlamps.
+      mats.brake.opacity = l.brake ? 1 : l.head ? 0.55 : 0;
       mats.reverse.opacity = l.reverse ? 1 : 0;
       mats.left.opacity = l.left ? 1 : 0;
       mats.right.opacity = l.right ? 1 : 0;
@@ -265,8 +313,12 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
     trimMesh.visible = false;
     glasshouse.visible = false;
     for (const m of extras) m.visible = false;
-    // The model has its own door mirrors: ours are seen only from the driver's seat (their pictures).
-    for (const h of housings) h.visible = false;
+    // The model has its own door mirrors: ours (housing and picture) are seen only from the driver's seat.
+    for (const h of housings) {
+      root.remove(h);
+      h.material = trim;
+      interior.add(h);
+    }
     for (const face of [mirrors.left, mirrors.right]) {
       root.remove(face);
       interior.add(face);
@@ -282,9 +334,22 @@ export function createCarModel(tuning: VehicleTuning): CarModel {
       m.castShadow = true;
       w.spin.add(m);
     });
+    // The lamps glow on the model's own lamps (found by their colour), not on boxes of ours.
+    for (const l of lenses) l.visible = false;
+    const glow = (g: BufferGeometry, mat: MeshStandardMaterial) => {
+      const m = new Mesh(g, mat);
+      m.renderOrder = 2;
+      root.add(m);
+    };
+    glow(model.lamps.head, mats.head);
+    glow(model.lamps.tail, mats.brake);
+    glow(model.lamps.left, mats.left);
+    glow(model.lamps.right, mats.right);
     for (const mat of Object.values(mats)) {
       mat.transparent = true;
       mat.depthWrite = false;
+      mat.side = DoubleSide;
+      mat.needsUpdate = true;
     }
     lit.overlay = true;
     setLights(lit.last);
