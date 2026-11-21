@@ -206,7 +206,14 @@ class PaintBatch {
         const painting = !dash || inPeriod < dash[0];
         const untilChange = dash ? (painting ? dash[0] - inPeriod : period - inPeriod) : Infinity;
         // Never less than a millimetre: a dash boundary landing a rounding error away must not stall the walk.
-        const step = Math.max(1e-3, Math.min(len - s, untilChange, 10));
+        let step = Math.max(1e-3, Math.min(len - s, untilChange, 10));
+        // Shorter pieces where the ground bends (over a hill's crest), so the paint does not sink into it.
+        const h = (k: number) => surfaceHeight(this.map, ax + ((bx - ax) * k) / len, az + ((bz - az) * k) / len);
+        while (step > 0.5) {
+          const mid = h(s + step / 2);
+          if (Math.abs(mid - (h(s) + h(s + step)) / 2) < 0.004) break;
+          step /= 2;
+        }
         if (painting) {
           const t0 = s / len;
           const t1 = (s + step) / len;
@@ -231,13 +238,14 @@ class PaintBatch {
   }
 }
 
-function hillGeometry(width: number, ramp: number, plateau: number, rise: number): BufferGeometry {
+/** A hill's road (or, with `lift`, a kerb strip standing that high above it). */
+function hillGeometry(width: number, ramp: number, plateau: number, rise: number, lift = 0): BufferGeometry {
   // Side profile in (z, y), climbing north (-Z) from the foot at z = 0.
   const profile: [number, number][] = [
-    [0, 0],
-    [-ramp, rise],
-    [-ramp - plateau, rise],
-    [-2 * ramp - plateau, 0],
+    [0, lift],
+    [-ramp, rise + lift],
+    [-ramp - plateau, rise + lift],
+    [-2 * ramp - plateau, lift],
   ];
   const h = width / 2;
   const v: number[] = [];
@@ -383,6 +391,10 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   for (const h of map.hills) {
     const d = h.def;
     solid.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise), COLORS.asphalt, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+    // The road's central reservation rides over the hill with it.
+    if (d.median && d.median > 0.6) {
+      solid.add(hillGeometry(d.median - 0.5, d.rampLength, d.plateauLength, h.rise, 0.15), COLORS.kerb, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+    }
   }
 
   for (const s of def.solids) {

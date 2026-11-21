@@ -239,8 +239,8 @@ const STRINGS = {
   clutchAlmost: { ar: 'اضغط أكثر', en: 'Press further' },
   clutchDown: { ar: 'مضغوط: بدّل الغيار', en: 'Down: change gear' },
   menuHighwayNote: {
-    ar: 'طريق سريع يلف في الصحراء، عليه محطة وقرية.',
-    en: 'A motorway looping through the desert, with a service station and a village.',
+    ar: 'طريق سريع متصل يلف في الصحراء، بلا دوّارات ولا إشارات.',
+    en: 'One unbroken motorway looping through the desert: no roundabouts, no lights.',
   },
   menuKicker: { ar: 'سلطنة عُمان · تدريب على القيادة', en: 'Sultanate of Oman · Driver training' },
   hbOnShort: { ar: 'مشدودة', en: 'On' },

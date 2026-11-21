@@ -25,10 +25,13 @@ function inside(p: P2): boolean {
 
 describe('motorway map', () => {
   it('is a great loop of three-lane motorway at 120 km/h with sweeping curves', () => {
-    for (const id of ['mN1', 'mS1', 'mE1', 'mW2']) {
+    for (const id of ['mN', 'mS', 'mE', 'mW']) {
       expect(net.lane(`${id}:f2`).speedLimit).toBe(120);
-      expect(net.lane(`${id}:f0`).path.length).toBeGreaterThan(500);
+      expect(net.lane(`${id}:f0`).path.length).toBeGreaterThan(1000);
     }
+    // Nothing to stop for: no junctions, no roundabouts, no signals.
+    expect(lanes.some((l) => l.kind === 'roundabout')).toBe(false);
+    expect(net.signals.size).toBe(0);
     const curves = lanes.filter((l) => l.owner === 'cNE');
     expect(curves.length).toBe(6);
     for (const l of curves) {
@@ -50,16 +53,21 @@ describe('motorway map', () => {
     }
   });
 
-  it('lets you drive from anywhere to anywhere (changing lanes where needed)', () => {
-    const reach = (from: string, step: (l: Lane) => string[]) => {
+  it('goes round and round: each carriageway is a closed loop, all of it reachable', () => {
+    const reach = (from: string) => {
       const seen = new Set([from]);
       const queue = [from];
-      while (queue.length) for (const n of step(net.lane(queue.pop()!))) if (!seen.has(n)) (seen.add(n), queue.push(n));
+      while (queue.length) {
+        const l = net.lane(queue.pop()!);
+        for (const n of [...l.next, ...[l.left, l.right].filter((x): x is string => x !== null)]) if (!seen.has(n)) (seen.add(n), queue.push(n));
+      }
       return seen;
     };
-    const side = (l: Lane) => [l.left, l.right].filter((x): x is string => x !== null);
-    expect(reach(cityJson.spawn.lane, (l) => [...l.next, ...side(l)]).size).toBe(lanes.length);
-    expect(reach(cityJson.spawn.lane, (l) => [...l.previous, ...side(l)]).size).toBe(lanes.length);
+    const one = reach(cityJson.spawn.lane);
+    // Half the lanes: one direction round, in every lane; the other direction is the other half.
+    expect(one.size).toBe(lanes.length / 2);
+    const other = lanes.find((l) => !one.has(l.id))!;
+    expect(reach(other.id).size).toBe(lanes.length / 2);
   });
 
   it('paves under every lane and keeps everything raised clear of them', () => {
@@ -73,10 +81,13 @@ describe('motorway map', () => {
         }
         for (const r of city.raised) {
           if (Math.abs(r.center.x - p.x) > 30 || Math.abs(r.center.z - p.z) > 30) continue;
-          const gap =
-            r.type === 'cylinder'
-              ? dist(p, r.center) - r.radius
-              : Math.max(Math.abs(p.x - r.center.x) - r.size[0] / 2, Math.abs(p.z - r.center.z) - r.size[2] / 2);
+          // In the box's own frame (the median pieces round a curve are turned).
+          const th = r.type === 'box' ? ((r.yawDeg ?? 0) * Math.PI) / 180 : 0;
+          const dx = p.x - r.center.x;
+          const dz = p.z - r.center.z;
+          const lx = dx * Math.cos(th) - dz * Math.sin(th);
+          const lz = dx * Math.sin(th) + dz * Math.cos(th);
+          const gap = r.type === 'cylinder' ? dist(p, r.center) - r.radius : Math.max(Math.abs(lx) - r.size[0] / 2, Math.abs(lz) - r.size[2] / 2);
           expect(gap, `${l.id} at ${s.toFixed(0)} m vs ${r.kind} at (${r.center.x.toFixed(0)}, ${r.center.z.toFixed(0)})`).toBeGreaterThan(1.6);
         }
       }

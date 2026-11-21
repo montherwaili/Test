@@ -101,7 +101,7 @@ export interface Paint {
 }
 
 export type Raised =
-  | { type: 'box'; kind: 'kerb' | 'building' | 'wall'; center: P2; size: [number, number, number]; style?: number }
+  | { type: 'box'; kind: 'kerb' | 'building' | 'wall'; center: P2; size: [number, number, number]; style?: number; yawDeg?: number }
   | { type: 'cylinder'; kind: 'kerb' | 'palm'; center: P2; radius: number; height: number };
 
 export interface HillOnRoad {
@@ -114,6 +114,8 @@ export interface HillOnRoad {
   gradePercent: number;
   rampLength: number;
   plateauLength: number;
+  /** Width of the central reservation running over it, m (0 for none). */
+  median?: number;
 }
 
 export interface BumpOnRoad {
@@ -436,7 +438,13 @@ export function generateTown(def: TownDef): TownLayout {
         line(m + i * w, 'white', [3, 6]);
         line(-(m + i * w), 'white', [3, 6]);
       }
-      raised.push(boxAlong(a.centre, d, startAt + 1.5, endAt - 1.5, 0, medianOf(r) - 0.5, KERB_HEIGHT));
+      // The central reservation: a kerbed strip, broken where a hill carries its own.
+      const spans: [number, number][] = [];
+      if (hill && hill.type === 'hill') {
+        const hillEnd = hill.at + 2 * hill.rampLength + hill.plateauLength;
+        spans.push([startAt + 1.5, hill.at - 0.5], [hillEnd + 0.5, endAt - 1.5]);
+      } else spans.push([startAt + 1.5, endAt - 1.5]);
+      for (const [from, to] of spans) if (to - from > 2) raised.push(boxAlong(a.centre, d, from, to, 0, medianOf(r) - 0.5, KERB_HEIGHT));
     } else {
       line(0, 'white', [3, 6]);
     }
@@ -465,7 +473,16 @@ export function generateTown(def: TownDef): TownLayout {
         ...backward.map((id) => ({ lane: id, s: endAt - s })),
       ];
       if (f.type === 'hill') {
-        hills.push({ x: at.x, z: at.z, headingDeg: ARM_HEADING[armA.dir], width: hw * 2 + 0.6, gradePercent: f.gradePercent, rampLength: f.rampLength, plateauLength: f.plateauLength });
+        hills.push({
+          x: at.x,
+          z: at.z,
+          headingDeg: ARM_HEADING[armA.dir],
+          width: hw * 2 + 0.6,
+          gradePercent: f.gradePercent,
+          rampLength: f.rampLength,
+          plateauLength: f.plateauLength,
+          median: medianOf(r),
+        });
       } else if (f.type === 'bump') {
         bumps.push({ x: at.x, z: at.z, headingDeg: ARM_HEADING[armA.dir], width: hw * 2 - 0.4 });
         network.bumps.push({ id: `${r.id}:bump@${f.at}`, position: at, lanes: lanesAt(f.at) });
@@ -584,6 +601,19 @@ export function generateTown(def: TownDef): TownLayout {
           surfaces.push({ type: 'rect', from: add(p0, u, -grow), to: add(p1, u, grow), width: hw * 2 });
         }
         if (a.road.lanes >= 2) {
+          // The central reservation carries on round the curve, in short straight pieces.
+          for (let k = 0; k < centre.length - 1; k++) {
+            const p0 = centre[k]!;
+            const p1 = centre[k + 1]!;
+            const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+            raised.push({
+              type: 'box',
+              kind: 'kerb',
+              center: { x: (p0.x + p1.x) / 2, z: (p0.z + p1.z) / 2 },
+              size: [len + 0.3, KERB_HEIGHT, medianOf(a.road) - 0.5],
+              yawDeg: (Math.atan2(-(p1.z - p0.z), p1.x - p0.x) * 180) / Math.PI,
+            });
+          }
           const m = medianOf(a.road) / 2;
           paint.push({ points: arc(e - m - 0.15, false), width: 0.12, color: 'yellow' });
           paint.push({ points: arc(e + m + 0.15, false), width: 0.12, color: 'yellow' });

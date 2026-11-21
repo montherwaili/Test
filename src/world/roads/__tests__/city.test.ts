@@ -69,10 +69,13 @@ describe('free-drive city', () => {
         }
         for (const r of city.raised) {
           if (Math.abs(r.center.x - p.x) > 30 || Math.abs(r.center.z - p.z) > 30) continue;
-          const gap =
-            r.type === 'cylinder'
-              ? dist(p, r.center) - r.radius
-              : Math.max(Math.abs(p.x - r.center.x) - r.size[0] / 2, Math.abs(p.z - r.center.z) - r.size[2] / 2);
+          // In the box's own frame (the median pieces round a curve are turned).
+          const th = r.type === 'box' ? ((r.yawDeg ?? 0) * Math.PI) / 180 : 0;
+          const dx = p.x - r.center.x;
+          const dz = p.z - r.center.z;
+          const lx = dx * Math.cos(th) - dz * Math.sin(th);
+          const lz = dx * Math.sin(th) + dz * Math.cos(th);
+          const gap = r.type === 'cylinder' ? dist(p, r.center) - r.radius : Math.max(Math.abs(lx) - r.size[0] / 2, Math.abs(lz) - r.size[2] / 2);
           expect(gap, `${l.id} at ${s.toFixed(0)} m vs ${r.kind} at (${r.center.x.toFixed(0)}, ${r.center.z.toFixed(0)})`).toBeGreaterThan(1.6);
         }
       }

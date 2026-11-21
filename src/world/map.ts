@@ -60,6 +60,8 @@ export interface HillDef {
   /** Horizontal length of each ramp, m. */
   rampLength: number;
   plateauLength: number;
+  /** Width of a central reservation over it, m (drawn, not solid). */
+  median?: number;
 }
 
 export interface RoadDef {
@@ -168,6 +170,7 @@ export function townMapDef(town: TownLayout): MapDef {
         size: r.size,
       };
       if (r.style !== undefined) box.style = r.style;
+      if (r.yawDeg !== undefined) box.yawDeg = r.yawDeg;
       solids.push(box);
     } else {
       solids.push({
