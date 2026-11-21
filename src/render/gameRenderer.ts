@@ -9,6 +9,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   PMREMGenerator,
+  TextureLoader,
   type Texture,
   DirectionalLight,
   Fog,
@@ -143,6 +144,8 @@ export class GameRenderer {
     this.scene.fog = new Fog(HAZE, Math.max(140, fogEnd * 0.22), fogEnd);
     this.skyDome = new SkyDome(fogEnd);
     this.skyDome.setSunDirection(SUN_OFFSET);
+    // The day sky is a photograph of a desert (its sun 60.7% of the way across, down to 8° below the horizon).
+    new TextureLoader().load(new URL('textures/sky-goegap.jpg', document.baseURI).href, (tex) => this.skyDome.setPhoto(tex, 0.6074, -8));
     this.scene.add(this.skyDome.mesh);
 
     this.sky = new HemisphereLight(0xcfe4ff, 0xcdb58a, 1.35);

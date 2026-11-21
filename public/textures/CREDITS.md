@@ -10,6 +10,8 @@ pictures are kept as brightness only, so the game's own colours show through.
 | `sand-albedo.jpg`, `sand-normal.jpg` | [Aerial Sand](https://polyhaven.com/a/aerial_sand) | Rob Tuytel |
 | `asphalt-albedo.jpg`, `asphalt-normal.jpg` | [Asphalt 02](https://polyhaven.com/a/asphalt_02) | Rob Tuytel |
 | `plaster-normal.jpg` | [Beige Wall 001](https://polyhaven.com/a/beige_wall_001) | Dimitrios Savva, Rico Cilliers |
+| `sky-goegap.jpg` (the day sky, the zenith to 8° below the horizon) | [Goegap](https://polyhaven.com/a/goegap), tonemapped | Greg Zaal |
+| `title-road.jpg` (the start screen, a view cut from the panorama) | [Nowhere Road](https://polyhaven.com/a/nowhere_road), tonemapped | Dario Barresi, Jarod Guest |
 | `paving-albedo.jpg`, `paving-normal.jpg` | [Concrete Pavement](https://polyhaven.com/a/concrete_pavement) | Charlotte Baglioni |
 
 The interface font, IBM Plex Sans Arabic (`src/ui/fonts/`), is licensed under

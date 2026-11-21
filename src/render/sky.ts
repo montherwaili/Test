@@ -3,7 +3,7 @@
  * the horizon (the same colour as the fog, so the land melts into it), with
  * the sun's glow; by night, dark with stars.
  */
-import { BackSide, Color, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { BackSide, Color, Mesh, RepeatWrapping, SRGBColorSpace, ShaderMaterial, SphereGeometry, Vector3, type Texture } from 'three';
 
 export interface SkyColors {
   zenith: number;
@@ -11,7 +11,8 @@ export interface SkyColors {
   sun: number;
 }
 
-export const DAY_SKY: SkyColors = { zenith: 0x3f7fc8, horizon: 0xdfe6ea, sun: 0xfff3dc };
+/** By day the horizon (and the fog the land fades into) takes the dusty tone of the photographed sky's foot. */
+export const DAY_SKY: SkyColors = { zenith: 0x3f7fc8, horizon: 0xc2b6a4, sun: 0xfff3dc };
 export const NIGHT_SKY: SkyColors = { zenith: 0x03060f, horizon: 0x10162a, sun: 0x9fb4ff };
 
 export class SkyDome {
@@ -28,6 +29,10 @@ export class SkyDome {
         uSunColor: { value: new Color(DAY_SKY.sun) },
         uSunDir: { value: new Vector3(0.4, 0.8, 0.3).normalize() },
         uNight: { value: 0 },
+        uPhoto: { value: null as Texture | null },
+        uHasPhoto: { value: 0 },
+        uPhotoTurn: { value: 0 },
+        uPhotoBottom: { value: -8 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -43,6 +48,10 @@ export class SkyDome {
         uniform vec3 uSunColor;
         uniform vec3 uSunDir;
         uniform float uNight;
+        uniform sampler2D uPhoto;
+        uniform float uHasPhoto;
+        uniform float uPhotoTurn;
+        uniform float uPhotoBottom;
         varying vec3 vDir;
         float h2(vec2 p) {
           p = fract(p * vec2(123.34, 456.21));
@@ -96,6 +105,22 @@ export class SkyDome {
             float star = step(0.996, hash(cell)) * smoothstep(0.35, 0.0, length(fract(g) - 0.5));
             col += vec3(star) * (0.5 + 0.5 * hash(cell + 3.0)) * smoothstep(0.05, 0.3, d.y);
           }
+          // By day, a photographed desert sky with its mountains on the horizon (Poly Haven, CC0).
+          if (uHasPhoto > 0.5 && uNight < 0.5) {
+            float lon = atan(d.x, -d.z) / 6.2831853 + uPhotoTurn;
+            float lat = degrees(asin(clamp(d.y, -1.0, 1.0)));
+            // The photo is lifted by 2.5 degrees: the camera stands on a road above the plain, and
+            // its mountains should stand on the far edge of our land, not behind the fog under it.
+            // Low down the picture is squeezed (x1.7): its rocks, a few dozen metres from where it was
+            // taken, sit lower and read as distant hills; from 40 degrees up it is as taken.
+            float plat = lat < 40.0 ? (lat - 1.0) * 1.7 : mix(66.3, 90.0, (lat - 40.0) / 50.0);
+            float v = (90.0 - plat) / (90.0 - uPhotoBottom);
+            // (Textures are loaded bottom row first: v counts up from the foot of the picture.)
+            vec3 photo = texture2D(uPhoto, vec2(fract(lon), 1.0 - clamp(v, 0.001, 0.999))).rgb * 1.15;
+            // Distant mountains are paler (air between); below them, into the haze the land fades to.
+            photo = mix(photo, uHorizon, 0.35 * (1.0 - smoothstep(2.0, 12.0, lat)));
+            col = mix(photo, uHorizon, smoothstep(1.5, -0.5, lat));
+          }
           gl_FragColor = vec4(col, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -112,6 +137,23 @@ export class SkyDome {
     (u.uHorizon!.value as Color).set(c.horizon);
     (u.uSunColor!.value as Color).set(c.sun);
     u.uNight!.value = night ? 1 : 0;
+  }
+
+  /**
+   * Use a photographed sky by day: an equirectangular picture from the zenith
+   * down to `bottom` degrees, turned so its sun (at `sunU` across it) stands
+   * where the scene's sun light comes from.
+   */
+  setPhoto(tex: Texture, sunU: number, bottom: number): void {
+    tex.colorSpace = SRGBColorSpace;
+    tex.wrapS = RepeatWrapping;
+    const u = this.mesh.material.uniforms;
+    const sun = u.uSunDir!.value as Vector3;
+    const sunLon = Math.atan2(sun.x, -sun.z) / (Math.PI * 2);
+    u.uPhoto!.value = tex;
+    u.uPhotoTurn!.value = sunU - sunLon;
+    u.uPhotoBottom!.value = bottom;
+    u.uHasPhoto!.value = 1;
   }
 
   setSunDirection(dir: Vector3): void {
