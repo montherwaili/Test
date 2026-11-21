@@ -121,9 +121,6 @@ export class Hud {
     onPress(lang, switchLang);
     this.switchLang = switchLang;
     iconButton('settings', 'settings', callbacks.onSettings, 'btn-settings');
-    this.fps = el('div', 'fps', this.root);
-    this.fps.dir = 'ltr';
-    this.fps.hidden = true;
 
     // --- instrument cluster: a rev counter round the speed, as in the car ---------
     const cluster = el('div', 'cluster', this.root);
@@ -157,6 +154,10 @@ export class Hud {
       seatbelt: lamp('seatbelt', 'lampSeatbelt', 'lamp-red'),
       lights: lamp('lowBeam', 'lampLights', 'lamp-green'),
     };
+    // Frames per second (when asked for in the settings): a small line in the cluster, so it never covers anything.
+    this.fps = el('div', 'fps', cluster);
+    this.fps.dir = 'ltr';
+    this.fps.hidden = true;
     // Faults so far, by severity.
     this.faultCount = el('div', 'fault-count', cluster);
     this.faultCount.hidden = true;

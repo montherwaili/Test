@@ -856,7 +856,7 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
     if (settingsPanel.open) settingsPanel.update();
     if (governor?.frame(elapsed)) renderer.setResolutionScale(governor.scale);
     if (settings.showFps && stats.frames % 15 === 0) {
-      hud.showFps(`${Math.round(stats.fps)} ${t('fpsLabel')} · ${renderer.pixelRatio.toFixed(2)}×`);
+      hud.showFps(`${Math.round(stats.fps)} FPS`);
     }
     const paused = hud.helpOpen || results.open || lessonsMenu.open || settingsPanel.open || mainMenu.open;
     if (!paused) stepper.advance(elapsed, simStep);

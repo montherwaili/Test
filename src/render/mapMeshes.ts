@@ -408,15 +408,30 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
         const color = s.kind === 'wall' ? COLORS.wall : COLORS.kerb;
         // Wide kerb boxes are pavements: paving slabs on top.
         const paved = s.kind !== 'wall' && Math.min(s.size[0], s.size[2]) >= 1.5;
-        solid.add(
-          new BoxGeometry(s.size[0], s.size[1], s.size[2]),
-          color,
-          s.center[0],
-          s.center[1],
-          s.center[2],
-          ((s.yawDeg ?? 0) * Math.PI) / 180,
-          paved ? [2, 0, 0, 0] : undefined,
-        );
+        // Long kerbs (a motorway's central reservation runs for a kilometre) are drawn in
+        // short pieces: one long box loses depth precision away from the camera and
+        // flickers in and out as you drive.
+        const alongX = s.size[0] >= s.size[2];
+        const long = alongX ? s.size[0] : s.size[2];
+        const pieces = Math.max(1, Math.ceil(long / 30));
+        const yaw = ((s.yawDeg ?? 0) * Math.PI) / 180;
+        for (let k = 0; k < pieces; k++) {
+          const off = ((k + 0.5) / pieces - 0.5) * long;
+          const lx = alongX ? off : 0;
+          const lz = alongX ? 0 : off;
+          // Turned with the box (yaw about Y: +X goes to (cos, -sin)).
+          const wx = lx * Math.cos(yaw) + lz * Math.sin(yaw);
+          const wz = -lx * Math.sin(yaw) + lz * Math.cos(yaw);
+          solid.add(
+            new BoxGeometry(alongX ? long / pieces : s.size[0], s.size[1], alongX ? s.size[2] : long / pieces),
+            color,
+            s.center[0] + wx,
+            s.center[1],
+            s.center[2] + wz,
+            yaw,
+            paved ? [2, 0, 0, 0] : undefined,
+          );
+        }
       }
     } else if (s.shape === 'cylinder') {
       if (s.kind === 'palm') addPalm(solid, s.center[0], s.center[2], s.height, s.radius, lite);

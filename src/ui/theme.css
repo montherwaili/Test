@@ -1676,22 +1676,17 @@ kbd {
   }
 }
 
-/* Frames per second: in the corner opposite the top bar, clear of the cluster. */
-.fps {
-  left: auto;
+/* Frames per second: a quiet line at the foot of the cluster. */
+.cluster .fps {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: center;
   transform: none;
-  margin-top: 0;
-  top: max(12px, env(safe-area-inset-top, 0px));
-  inset-inline-end: max(12px, env(safe-area-inset-left, 0px));
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font: 600 11px var(--font);
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: 600 10px var(--font);
   font-variant-numeric: tabular-nums;
-}
-
-/* Phones: under the gear lever. */
-.touch .fps {
-  inset-inline-end: auto;
-  right: var(--edge-r);
-  top: calc(var(--edge-t) + clamp(96px, 30vh, 150px) + 6px);
 }
