@@ -15,6 +15,7 @@
  * audio graph is built on the first touch, click or key press.
  */
 import { CrashSounds, prefetchCrashSounds } from './crashSounds';
+import { decodeBank, fetchBank, type BankMeta } from './soundBank';
 import { prefetchEngineSounds, RecordedEngine } from './recordedEngine';
 import {
   renderBuckle,
@@ -58,6 +59,16 @@ const SMOOTH = 0.04;
 
 type Layer = { source: AudioBufferSourceNode; gain: GainNode };
 
+/** Synthesized one-shots and the recordings that replace them (public/sounds/controls). */
+const REAL: Record<string, string> = { tick: 'tick', tock: 'tock', pull: 'handbrake-on', release: 'handbrake-off', buckle: 'buckle' };
+/** The recordings are normalised; bring each to its place in the mix. */
+const REAL_LEVEL: Record<string, number> = { tick: 1.3, tock: 1.3, pull: 1.6, release: 1.6, buckle: 1.8 };
+
+/** Download the control recordings (no audio context needed): called as the page loads. */
+function prefetchControlSounds() {
+  return fetchBank<BankMeta>('controls', () => ['tick', 'tock', 'horn-loop', 'handbrake-on', 'handbrake-off', 'buckle']);
+}
+
 export class CarAudio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -81,6 +92,9 @@ export class CarAudio {
   private recordedPending = false;
   /** Collisions and tyre squeal from real recordings, once loaded (synthesized until then). */
   private crashes: CrashSounds | null = null;
+  /** The controls (relay, horn, handbrake, seatbelt) from real recordings, once loaded. */
+  private controls: Map<string, AudioBuffer> | null = null;
+  private realHorn: GainNode | null = null;
 
   private lastLit = false;
   private wasTurning = false;
@@ -91,6 +105,7 @@ export class CarAudio {
     // Download the engine recordings now, before the first touch.
     prefetchEngineSounds().catch(() => undefined);
     prefetchCrashSounds().catch(() => undefined);
+    prefetchControlSounds().catch(() => undefined);
     // The first gesture unlocks audio.
     const unlock = () => {
       this.start();
@@ -270,6 +285,21 @@ export class CarAudio {
       if (ok) this.recorded = recorded;
       this.recordedPending = false;
     });
+    void prefetchControlSounds()
+      .then((bank) => decodeBank(ctx, bank))
+      .then((buffers) => {
+        this.controls = buffers;
+        // The horn: its recording looped, silent until pressed.
+        const src = ctx.createBufferSource();
+        src.buffer = buffers.get('horn-loop')!;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        src.connect(gain).connect(this.master!);
+        src.start();
+        this.realHorn = gain;
+      })
+      .catch(() => undefined);
     const crashes = new CrashSounds(ctx, this.master!);
     void crashes.load().then((ok) => {
       if (ok) this.crashes = crashes;
@@ -349,7 +379,8 @@ export class CarAudio {
     this.tyreGain!.gain.setTargetAtTime(this.crashes ? 0 : squeal * 0.35, now, SMOOTH);
     this.crashes?.setSqueal(squeal);
     this.roadGain!.gain.setTargetAtTime(roadNoise(s.speed) * 0.18, now, 0.2);
-    this.hornGain!.gain.setTargetAtTime(s.horn ? 0.6 : 0, now, 0.008);
+    this.hornGain!.gain.setTargetAtTime(s.horn && !this.realHorn ? 0.6 : 0, now, 0.008);
+    this.realHorn?.gain.setTargetAtTime(s.horn ? 0.55 : 0, now, s.horn ? 0.006 : 0.03);
     if (s.indicatorLit !== this.lastLit) {
       this.lastLit = s.indicatorLit;
       this.play(s.indicatorLit ? 'tick' : 'tock', 0.35);
@@ -364,11 +395,15 @@ export class CarAudio {
     for (const g of gains) g?.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     this.recorded?.quiet();
     this.crashes?.quiet();
+    this.realHorn?.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
   }
 
   private play(name: string, level: number, rate = 1): void {
     const ctx = this.ctx;
-    const buf = this.shots[name];
+    // A real recording of this control, when there is one.
+    const real = this.controls?.get(REAL[name] ?? '');
+    const buf = real ?? this.shots[name];
+    if (real) level = Math.min(1, level * (REAL_LEVEL[name] ?? 1.6));
     if (!ctx || !buf) return;
     const src = ctx.createBufferSource();
     src.buffer = buf;

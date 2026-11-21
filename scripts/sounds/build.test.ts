@@ -243,3 +243,41 @@ it('builds the crash sound bank', () => {
   expect(thumps.length).toBeGreaterThanOrEqual(4);
   expect(smashes.length).toBeGreaterThanOrEqual(3);
 });
+
+// --- the car's controls ------------------------------------------------------------
+
+const CONTROLS_SRC = 'controls/';
+const CONTROLS_OUT = 'public/sounds/controls/';
+
+it('builds the controls sound bank', () => {
+  mkdirSync(CONTROLS_OUT, { recursive: true });
+  for (const f of readdirSync(CONTROLS_OUT).filter((n) => n.endsWith('.wav'))) rmSync(CONTROLS_OUT + f);
+  const write = (name: string, x: Float32Array) => writeWav(name, x, CONTROLS_OUT);
+  const peakTo = (x: Float32Array, p: number) => {
+    let m = 0;
+    for (const v of x) m = Math.max(m, Math.abs(v));
+    return x.map((v) => (v / m) * p);
+  };
+
+  // Indicator relay (a Citroën C3, inside): the click as the lamps light, and the softer one as they go out.
+  const relay = decode(CONTROLS_SRC + 'BigSoundBank-3107-turn-signals-C3.flac');
+  write('tick.wav', peakTo(fades(seg(relay, 0.68, 0.98), 0.003, 0.08), 0.8));
+  write('tock.wav', peakTo(fades(seg(relay, 1.06, 1.3), 0.003, 0.08), 0.6));
+
+  // Horn (a Peugeot 106): a steady stretch of it, looped while the horn is held.
+  const horn = decode(CONTROLS_SRC + 'BigSoundBank-0850-horn-Peugeot106.flac');
+  const steady = seg(horn, 4.9, 6.2);
+  write('horn-loop.wav', peakTo(crossfadeLoop(steady, SR, 0.12), 0.8));
+
+  // Handbrake (a Citroën C3): pulled up over its ratchet, and let down.
+  write('handbrake-on.wav', peakTo(fades(seg(decode(CONTROLS_SRC + 'BigSoundBank-3100-handbrake-on-C3.flac'), 0.3, 1.4), 0.01, 0.2), 0.8));
+  write('handbrake-off.wav', peakTo(fades(seg(decode(CONTROLS_SRC + 'BigSoundBank-3104-handbrake-off-C3.flac'), 0.25, 1.4), 0.01, 0.2), 0.8));
+
+  // Seatbelt buckled.
+  write('buckle.wav', peakTo(fades(seg(decode(CONTROLS_SRC + 'BigSoundBank-1506-seat-belt-in.flac'), 0.62, 1.25), 0.01, 0.15), 0.8));
+
+  const hash = createHash('sha1');
+  for (const f of readdirSync(CONTROLS_OUT).filter((n) => n.endsWith('.wav')).sort()) hash.update(readFileSync(CONTROLS_OUT + f));
+  writeFileSync(CONTROLS_OUT + 'meta.json', JSON.stringify({ version: hash.digest('hex').slice(0, 10) }, null, 1) + '\n');
+  expect(readdirSync(CONTROLS_OUT).filter((n) => n.endsWith('.wav'))).toHaveLength(6);
+});
