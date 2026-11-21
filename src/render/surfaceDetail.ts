@@ -216,7 +216,7 @@ export function asphaltDetail(material: Material): void {
     );
     setNormal(
       shader,
-      `  vec3 nW = dTip(vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, -1.0), dTwice(dAsphaltN, vDWorld.xz, 3.0).rgb, 1.0);
+      `  vec3 nW = dTip(normalize(vDNormal), vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, -1.0), dTwice(dAsphaltN, vDWorld.xz, 3.0).rgb, 1.0);
   normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);`,
     );
   });

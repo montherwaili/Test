@@ -58,6 +58,7 @@ const COLORS = {
   door: 0x6b4a2f,
   dome: 0xd9b45a,
   rock: 0xa98c66,
+  concrete: 0xbab5ab,
 };
 
 /** Wall colours for buildings: whites and warm sand tones. */
@@ -239,7 +240,7 @@ class PaintBatch {
 }
 
 /** A hill's road (or, with `lift`, a kerb strip standing that high above it). */
-function hillGeometry(width: number, ramp: number, plateau: number, rise: number, lift = 0): BufferGeometry {
+function hillGeometry(width: number, ramp: number, plateau: number, rise: number, lift = 0, part: 'all' | 'top' | 'sides' = 'all'): BufferGeometry {
   // Side profile in (z, y), climbing north (-Z) from the foot at z = 0.
   const profile: [number, number][] = [
     [0, lift],
@@ -253,9 +254,11 @@ function hillGeometry(width: number, ramp: number, plateau: number, rise: number
   for (let i = 0; i < 3; i++) {
     const [z0, y0] = profile[i]!;
     const [z1, y1] = profile[i + 1]!;
-    quad([-h, y0, z0], [h, y0, z0], [h, y1, z1], [-h, y1, z1]); // road surface
-    quad([h, 0, z0], [h, 0, z1], [h, y1, z1], [h, y0, z0]); // right flank
-    quad([-h, 0, z1], [-h, 0, z0], [-h, y0, z0], [-h, y1, z1]); // left flank
+    if (part !== 'sides') quad([-h, y0, z0], [h, y0, z0], [h, y1, z1], [-h, y1, z1]); // road surface
+    if (part !== 'top') {
+      quad([h, 0, z0], [h, 0, z1], [h, y1, z1], [h, y0, z0]); // right flank
+      quad([-h, 0, z1], [-h, 0, z0], [-h, y0, z0], [-h, y1, z1]); // left flank
+    }
   }
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(v), 3));
@@ -374,6 +377,11 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     g.rotateX(-Math.PI / 2);
     paving.add(g, COLORS.asphalt, d.center[0], 0.006, d.center[1]);
   }
+  // The road over each hill: the same asphalt as the rest of the road.
+  for (const h of map.hills) {
+    const d = h.def;
+    paving.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise, 0.006, 'top'), COLORS.asphalt, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+  }
   if (!paving.empty) {
     const asphalt = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     asphaltDetail(asphalt);
@@ -390,10 +398,13 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   for (const h of map.hills) {
     const d = h.def;
-    solid.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise), COLORS.asphalt, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+    // The hill's sides are concrete (its road is drawn with the paving above).
+    const yaw = (-(d.headingDeg ?? 0) * Math.PI) / 180;
+    solid.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise, 0, 'sides'), COLORS.concrete, d.x, 0, d.z, yaw);
     // The road's central reservation rides over the hill with it.
     if (d.median && d.median > 0.6) {
-      solid.add(hillGeometry(d.median - 0.5, d.rampLength, d.plateauLength, h.rise, 0.15), COLORS.kerb, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+      solid.add(hillGeometry(d.median - 0.5, d.rampLength, d.plateauLength, h.rise, d.median >= 3 ? 0.3 : 0.15), COLORS.kerb, d.x, 0, d.z, yaw);
+      if (d.median >= 6) solid.add(hillGeometry(0.5, d.rampLength, d.plateauLength, h.rise, 0.85), COLORS.concrete, d.x, 0, d.z, yaw);
     }
   }
 
@@ -532,24 +543,31 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   // --- signs: a pole and a back plate in the solid batch, the faces by texture ----
   const faces = new Map<string, BufferGeometry[]>();
+  const signBacks = new Map<string, BufferGeometry[]>();
   for (const s of def.signs ?? []) {
     const a = Math.PI - (s.facingDeg * Math.PI) / 180; // turn a +Z-facing plate to the compass heading
     const nx = Math.sin((s.facingDeg * Math.PI) / 180);
     const nz = -Math.cos((s.facingDeg * Math.PI) / 180);
-    solid.add(new CylinderGeometry(0.04, 0.04, SIGN_HEIGHT + SIGN_SIZE / 2, 6), COLORS.metal, s.x, (SIGN_HEIGHT + SIGN_SIZE / 2) / 2, s.z);
+    // The pole stands behind the plate and stops short of its top edge, so it never shows through the face.
+    solid.add(new CylinderGeometry(0.04, 0.045, SIGN_HEIGHT + SIGN_SIZE * 0.3, 8), COLORS.metal, s.x, (SIGN_HEIGHT + SIGN_SIZE * 0.3) / 2, s.z);
     const face = new PlaneGeometry(SIGN_SIZE, SIGN_SIZE);
-    face.applyMatrix4(new Matrix4().makeRotationY(a).setPosition(s.x + nx * 0.05, SIGN_HEIGHT, s.z + nz * 0.05));
+    face.applyMatrix4(new Matrix4().makeRotationY(a).setPosition(s.x + nx * 0.1, SIGN_HEIGHT, s.z + nz * 0.1));
+    // The back of the plate, plain grey metal in the sign's own outline.
+    const back = new PlaneGeometry(SIGN_SIZE, SIGN_SIZE);
+    back.applyMatrix4(new Matrix4().makeRotationY(a + Math.PI).setPosition(s.x + nx * 0.09, SIGN_HEIGHT, s.z + nz * 0.09));
     const key = signTextureKey(s);
     let list = faces.get(key);
     if (!list) faces.set(key, (list = []));
     list.push(face);
+    let backs = signBacks.get(key);
+    if (!backs) signBacks.set(key, (backs = []));
+    backs.push(back);
   }
   for (const [key, list] of faces) {
-    const mesh = new Mesh(
-      mergeGeometries(list, false),
-      new MeshLambertMaterial({ map: signTexture(key), alphaTest: 0.5, side: DoubleSide }),
-    );
-    root.add(mesh);
+    const map = signTexture(key);
+    root.add(new Mesh(mergeGeometries(list, false), new MeshLambertMaterial({ map, alphaTest: 0.5 })));
+    // Black times the picture leaves only its outline; the grey comes from the emissive.
+    root.add(new Mesh(mergeGeometries(signBacks.get(key)!, false), new MeshLambertMaterial({ map, color: 0x000000, emissive: 0x5d6064, alphaTest: 0.5 })));
   }
 
   // --- traffic signals --------------------------------------------------------------

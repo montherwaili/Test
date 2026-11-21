@@ -176,6 +176,17 @@ const RING_OFFSET_DEG = 28;
 const TURNAROUND_RADIUS = 7;
 const SIDEWALK_WIDTH = 2;
 const KERB_HEIGHT = 0.15;
+/**
+ * The central reservation stands higher than a kerb, and a wide one (a
+ * motorway's) carries a concrete barrier: a low strip of kerb was lost
+ * against the road a little way off and seemed to come and go.
+ */
+const MEDIAN_HEIGHT = 0.3;
+const BARRIER_MEDIAN = 6;
+const BARRIER_WIDTH = 0.5;
+const BARRIER_HEIGHT = 0.85;
+/** The test town keeps its low kerbed medians (its routes and lessons are set out on them). */
+const medianHeight = (width: number) => (width >= 3 ? MEDIAN_HEIGHT : KERB_HEIGHT);
 const JUNCTION_SPEED = 25;
 const ROUNDABOUT_SPEED = 30;
 const SIGNAL_GREEN = 14;
@@ -444,7 +455,11 @@ export function generateTown(def: TownDef): TownLayout {
         const hillEnd = hill.at + 2 * hill.rampLength + hill.plateauLength;
         spans.push([startAt + 1.5, hill.at - 0.5], [hillEnd + 0.5, endAt - 1.5]);
       } else spans.push([startAt + 1.5, endAt - 1.5]);
-      for (const [from, to] of spans) if (to - from > 2) raised.push(boxAlong(a.centre, d, from, to, 0, medianOf(r) - 0.5, KERB_HEIGHT));
+      for (const [from, to] of spans) {
+        if (to - from <= 2) continue;
+        raised.push(boxAlong(a.centre, d, from, to, 0, medianOf(r) - 0.5, medianHeight(medianOf(r))));
+        if (medianOf(r) >= BARRIER_MEDIAN) raised.push(boxAlong(a.centre, d, from - 1, to + 1, 0, BARRIER_WIDTH, BARRIER_HEIGHT));
+      }
     } else {
       line(0, 'white', [3, 6]);
     }
@@ -606,13 +621,16 @@ export function generateTown(def: TownDef): TownLayout {
             const p0 = centre[k]!;
             const p1 = centre[k + 1]!;
             const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-            raised.push({
-              type: 'box',
-              kind: 'kerb',
-              center: { x: (p0.x + p1.x) / 2, z: (p0.z + p1.z) / 2 },
-              size: [len + 0.3, KERB_HEIGHT, medianOf(a.road) - 0.5],
-              yawDeg: (Math.atan2(-(p1.z - p0.z), p1.x - p0.x) * 180) / Math.PI,
-            });
+            const piece = (width: number, height: number) =>
+              raised.push({
+                type: 'box',
+                kind: 'kerb',
+                center: { x: (p0.x + p1.x) / 2, z: (p0.z + p1.z) / 2 },
+                size: [len + 0.3, height, width],
+                yawDeg: (Math.atan2(-(p1.z - p0.z), p1.x - p0.x) * 180) / Math.PI,
+              });
+            piece(medianOf(a.road) - 0.5, medianHeight(medianOf(a.road)));
+            if (medianOf(a.road) >= BARRIER_MEDIAN) piece(BARRIER_WIDTH, BARRIER_HEIGHT);
           }
           const m = medianOf(a.road) / 2;
           paint.push({ points: arc(e - m - 0.15, false), width: 0.12, color: 'yellow' });

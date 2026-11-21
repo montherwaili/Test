@@ -9,6 +9,8 @@ import { CanvasTexture, SRGBColorSpace, type Texture } from 'three';
 import type { SignDef } from '../world/roads/generate';
 
 const SIZE = 128;
+/** Pixels per layout unit. */
+const RES = 4;
 const RED = '#c8102e';
 const BLUE = '#1456a8';
 const WHITE = '#ffffff';
@@ -170,13 +172,16 @@ const cache = new Map<string, Texture>();
 export function signTexture(key: string): Texture {
   let t = cache.get(key);
   if (!t) {
+    // Drawn on the 128-unit layout at four times the resolution, so the faces stay sharp up close.
     const canvas = document.createElement('canvas');
-    canvas.width = SIZE;
-    canvas.height = SIZE;
-    draw(key, canvas.getContext('2d')!);
+    canvas.width = SIZE * RES;
+    canvas.height = SIZE * RES;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(RES, RES);
+    draw(key, ctx);
     t = new CanvasTexture(canvas);
     t.colorSpace = SRGBColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     cache.set(key, t);
   }
   return t;
