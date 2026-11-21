@@ -86,7 +86,28 @@ export interface MapMeshes {
   setNight(night: boolean): void;
   /** Counts for the performance report. */
   stats: { meshes: number };
+  /** The buildings, for drawing them as models near the camera (sceneryModels.ts). */
+  buildings: PlacedBuilding[];
+  /** The drawn buildings of each 80 m square, by square. */
+  houseChunks: Map<string, Mesh>;
+  /** The palms, and the drawn ones (hidden once the models are in). */
+  palms: { x: number; z: number; height: number }[];
+  palmMeshes: Mesh[];
 }
+
+/** A building's footprint and height, which square of the map it is in, and which way the street is. */
+export interface PlacedBuilding {
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  chunk: string;
+  /** Turn (rad) that points a model's front (+Z) at the nearest road. */
+  faceYaw: number;
+}
+
+export { HOUSE_CHUNK, houseChunkKey };
 
 const NO_DETAIL = [0, 0, 0, 0] as const;
 
@@ -144,13 +165,18 @@ class Batch {
 /** Size of the squares the map is cut into, m: what is behind the camera is then skipped, not drawn. */
 const CHUNK = 200;
 const chunkKey = (x: number, z: number) => `${Math.floor(x / CHUNK)},${Math.floor(z / CHUNK)}`;
+/** Buildings go in smaller squares: those near the camera are swapped for models, and the fewer the better. */
+const HOUSE_CHUNK = 80;
+const houseChunkKey = (x: number, z: number) => `${Math.floor(x / HOUSE_CHUNK)},${Math.floor(z / HOUSE_CHUNK)}`;
 
 /** A Batch per square of the map: each becomes its own mesh. */
 class ChunkedBatch {
   private readonly chunks = new Map<string, Batch>();
 
+  constructor(private readonly keyOf: (x: number, z: number) => string = chunkKey) {}
+
   add(g: BufferGeometry, color: number, x: number, y: number, z: number, yaw = 0, detail: readonly [number, number, number, number] = NO_DETAIL): void {
-    const key = chunkKey(x, z);
+    const key = this.keyOf(x, z);
     let b = this.chunks.get(key);
     if (!b) this.chunks.set(key, (b = new Batch()));
     b.add(g, color, x, y, z, yaw, detail);
@@ -162,6 +188,11 @@ class ChunkedBatch {
 
   build(): BufferGeometry[] {
     return [...this.chunks.values()].map((b) => b.build());
+  }
+
+  /** Each square's geometry, by its key. */
+  buildKeyed(): Map<string, BufferGeometry> {
+    return new Map([...this.chunks].map(([k, b]) => [k, b.build()]));
   }
 }
 
@@ -397,6 +428,32 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   // --- everything solid --------------------------------------------------------
   const solid = new ChunkedBatch();
+  // Buildings and palms are drawn apart from the rest, so models can take their place.
+  const houses = new ChunkedBatch(houseChunkKey);
+  const palmBatch = new ChunkedBatch();
+  const buildings: PlacedBuilding[] = [];
+  const palms: MapMeshes['palms'] = [];
+  /** Which way (snapped to a quarter turn) the nearest road lies from a point. */
+  const towardsRoad = (x: number, z: number): number => {
+    let best = Infinity;
+    let yaw = 0;
+    for (const r of def.roads) {
+      const ax = r.from[0];
+      const az = r.from[1];
+      const dx = r.to[0] - ax;
+      const dz = r.to[1] - az;
+      const len2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2));
+      const px = ax + dx * t - x;
+      const pz = az + dz * t - z;
+      const d = px * px + pz * pz;
+      if (d < best) {
+        best = d;
+        yaw = Math.round(Math.atan2(px, pz) / (Math.PI / 2)) * (Math.PI / 2);
+      }
+    }
+    return yaw;
+  };
 
   for (const h of map.hills) {
     const d = h.def;
@@ -412,7 +469,18 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
 
   for (const s of def.solids) {
     if (s.shape === 'box') {
-      if (s.kind === 'building') addBuilding(solid, s, rnd);
+      if (s.kind === 'building') {
+        addBuilding(houses, s, rnd);
+        buildings.push({
+          x: s.center[0],
+          z: s.center[2],
+          width: s.size[0],
+          depth: s.size[2],
+          height: s.size[1],
+          chunk: houseChunkKey(s.center[0], s.center[2]),
+          faceYaw: towardsRoad(s.center[0], s.center[2]),
+        });
+      }
       else if (s.kind === 'wall' && s.style !== undefined) {
         // A house's boundary wall: rendered like the house, in plaster.
         const wall = BUILDING_STYLES[s.style % BUILDING_STYLES.length]!;
@@ -447,7 +515,10 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
         }
       }
     } else if (s.shape === 'cylinder') {
-      if (s.kind === 'palm') addPalm(solid, s.center[0], s.center[2], s.height, s.radius, lite);
+      if (s.kind === 'palm') {
+        addPalm(palmBatch, s.center[0], s.center[2], s.height, s.radius, lite);
+        palms.push({ x: s.center[0], z: s.center[2], height: s.height });
+      }
       else if (s.kind === 'island') {
         // The low outer ring is kerb stone; the taller middle is planted.
         const planted = s.height > 0.4;
@@ -455,7 +526,10 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
         if (planted) {
           for (let i = 0; i < 3; i++) {
             const a = (i / 3) * Math.PI * 2 + 0.5;
-            addPalm(solid, s.center[0] + Math.cos(a) * s.radius * 0.45, s.center[2] + Math.sin(a) * s.radius * 0.45, 6 + i * 0.8, 0.24, lite);
+            const px = s.center[0] + Math.cos(a) * s.radius * 0.45;
+            const pz = s.center[2] + Math.sin(a) * s.radius * 0.45;
+            addPalm(palmBatch, px, pz, 6 + i * 0.8, 0.24, lite);
+            palms.push({ x: px, z: pz, height: 6 + i * 0.8 });
           }
         }
       } else {
@@ -593,6 +667,26 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     }
   };
 
+  const houseChunks = new Map<string, Mesh>();
+  const palmMeshes: Mesh[] = [];
+  {
+    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true });
+    facadeDetail(material);
+    for (const [key, geometry] of houses.buildKeyed()) {
+      const mesh = new Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+      houseChunks.set(key, mesh);
+    }
+    const palmMaterial = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true, side: DoubleSide });
+    for (const geometry of palmBatch.build()) {
+      const mesh = new Mesh(geometry, palmMaterial);
+      mesh.castShadow = true;
+      root.add(mesh);
+      palmMeshes.push(mesh);
+    }
+  }
   if (!solid.empty) {
     const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true });
     facadeDetail(material);
@@ -703,5 +797,5 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   root.traverse((o) => {
     if ((o as Mesh).isMesh) meshes++;
   });
-  return { root, cones, setSignals, setNight, stats: { meshes } };
+  return { root, cones, setSignals, setNight, stats: { meshes }, buildings, houseChunks, palms, palmMeshes };
 }

@@ -31,6 +31,7 @@ import type { SignalState } from '../world/roads/signals';
 import { DRIVER_EYE, createCarModel, type CarLights, type CarModel } from './carModel';
 import { buildMapMeshes, type MapMeshes } from './mapMeshes';
 import { fittedCar } from './kenneyCars';
+import { SceneryModels } from './sceneryModels';
 import { DAY_SKY, NIGHT_SKY as NIGHT_SKY_COLORS, SkyDome } from './sky';
 import { loadDetailMaps, nightUniform } from './surfaceDetail';
 import { TrafficMeshes } from './trafficMeshes';
@@ -99,6 +100,7 @@ export class GameRenderer {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(55, 1, 0.1, 900);
   private readonly skyDome: SkyDome;
+  private readonly scenery: SceneryModels;
   mode: CameraMode = 'chase';
   /** Free camera: angle round the car (rad), height angle (rad) and distance (m). */
   readonly orbit = { yaw: 0.6, pitch: 0.45, distance: 14 };
@@ -168,6 +170,9 @@ export class GameRenderer {
 
     loadDetailMaps(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
     this.map = buildMapMeshes(builtMap, quality.lite);
+    // Buildings (near the camera) and palms as Kenney's models.
+    this.scenery = new SceneryModels(this.map.root, this.map.buildings, this.map.houseChunks, this.map.palms, this.map.palmMeshes, quality.lite ? 110 : 200);
+    void this.scenery.load().catch(() => undefined);
     this.scene.add(this.map.root);
 
     this.car = createCarModel(tuning);
@@ -412,6 +417,7 @@ export class GameRenderer {
     }
     cam.updateProjectionMatrix();
     this.skyDome.follow(cam.position);
+    this.scenery.update(cam.position.x, cam.position.z);
 
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, cam);

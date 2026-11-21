@@ -375,7 +375,13 @@ handbrake between the thumbs. The clutch pedal has a scale beside it (where it b
 where it is down far enough to change gear) and says where it is in words;
 with the automatic clutch or gearbox it is not shown at all.
 
-**Streets**: date palms with ringed trunks and arching fronds, boundary
+**Buildings and palms** are Kenney models too (City Kit Commercial and
+Nature Kit, CC0; `public/models/scenery/CREDITS.md`): white flat-roofed
+blocks turned to face the street, drawn as models within 200 m of the
+camera (110 m on phones) and as the cheaper drawn blocks beyond. The day
+sky is a photographed desert panorama with real hills on the horizon.
+
+**Streets** (drawn, until the models load): date palms, boundary
 walls round the houses (with gates, and solid: hitting one is a crash),
 street lamps along the pavements that light at night, and people in
 dishdashas and abayas with ghutras and shaylas (`src/render/props.ts`). On
