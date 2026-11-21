@@ -67,7 +67,7 @@ const BUILDING_STYLES = [0xf3efe6, 0xe9dcc3, 0xe2cfae, 0xf0e4d4];
 const MARKING_COLORS: Record<MarkingColor, number> = { white: 0xf4f4f0, yellow: 0xf2c230 };
 
 /** Height above the surface at which paint is drawn, to avoid z-fighting. */
-const PAINT_LIFT = 0.015;
+const PAINT_LIFT = 0.028;
 
 const SIGN_HEIGHT = 2.2;
 const SIGN_SIZE = 0.8;
@@ -227,7 +227,7 @@ class PaintBatch {
   }
 
   build(color: number): { meshes: Mesh[]; material: MeshBasicMaterial } {
-    const material = new MeshBasicMaterial({ color, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const material = new MeshBasicMaterial({ color, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     const meshes = [...this.chunks.values()].map((positions) => {
       const g = new BufferGeometry();
       g.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
@@ -346,7 +346,8 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
   };
 
   // --- ground and paving -----------------------------------------------------
-  const sand = new MeshStandardMaterial({ color: COLORS.sand, roughness: 1 });
+  // The sand is pushed back in depth instead, so the road always wins over it without covering anything standing on it.
+  const sand = new MeshStandardMaterial({ color: COLORS.sand, roughness: 1, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 });
   sandDetail(sand);
   // In 100 m squares, for the same reason as the roads below.
   const cells = Math.max(1, Math.round(def.groundSize / 100));
@@ -369,21 +370,22 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
       const t = (k + 0.5) / pieces;
       const g = new PlaneGeometry(r.width, len / pieces);
       g.rotateX(-Math.PI / 2);
-      paving.add(g, COLORS.asphalt, r.from[0] + dx * t, 0.006, r.from[1] + dz * t, Math.atan2(dx, dz));
+      paving.add(g, COLORS.asphalt, r.from[0] + dx * t, 0.012, r.from[1] + dz * t, Math.atan2(dx, dz));
     }
   }
   for (const d of def.discs ?? []) {
     const g = new CircleGeometry(d.radius, 48);
     g.rotateX(-Math.PI / 2);
-    paving.add(g, COLORS.asphalt, d.center[0], 0.006, d.center[1]);
+    paving.add(g, COLORS.asphalt, d.center[0], 0.012, d.center[1]);
   }
   // The road over each hill: the same asphalt as the rest of the road.
   for (const h of map.hills) {
     const d = h.def;
-    paving.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise, 0.006, 'top'), COLORS.asphalt, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
+    paving.add(hillGeometry(d.width, d.rampLength, d.plateauLength, h.rise, 0.012, 'top'), COLORS.asphalt, d.x, 0, d.z, (-(d.headingDeg ?? 0) * Math.PI) / 180);
   }
   if (!paving.empty) {
-    const asphalt = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    // No depth offset on the road: pulled towards the camera, it drew over kerbs and the median far off.
+    const asphalt = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
     asphaltDetail(asphalt);
     for (const geometry of paving.build()) {
       const mesh = new Mesh(geometry, asphalt);
@@ -627,8 +629,8 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     depthWrite: false,
     blending: AdditiveBlending,
     polygonOffset: true,
-    polygonOffsetFactor: -6,
-    polygonOffsetUnits: -6,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
     uniforms: { uStrength: { value: 0 } },
     vertexShader: 'varying vec2 vLocal; attribute vec2 centre; void main(){ vLocal = position.xz - centre; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader:
@@ -681,7 +683,7 @@ export function buildMapMeshes(map: BuiltMap, lite = false): MapMeshes {
     } else {
       const ring = new Mesh(
         new RingGeometry(m.radius - m.width / 2, m.radius + m.width / 2, 72),
-        new MeshBasicMaterial({ color: MARKING_COLORS[m.color], side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+        new MeshBasicMaterial({ color: MARKING_COLORS[m.color], side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(m.center[0], PAINT_LIFT, m.center[1]);
