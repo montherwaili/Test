@@ -57,6 +57,41 @@ export function suggestedStep(p: ProgressData, lessons: LessonDef[]): 1 | 2 | 3 
 
 type Section = 'lessons' | 'drive' | 'practise' | 'test';
 
+/**
+ * The start screen's picture: a desert road at dusk running to the
+ * mountains, drawn in a few flat layers.
+ */
+const TITLE_ART = `<svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <linearGradient id="ta-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1020"/><stop offset=".45" stop-color="#2a2a44"/><stop offset=".72" stop-color="#b8643a"/><stop offset=".8" stop-color="#e9a23b"/>
+    </linearGradient>
+    <radialGradient id="ta-sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffe2a8"/><stop offset=".35" stop-color="#ffc066" stop-opacity=".9"/><stop offset="1" stop-color="#ff9a3c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ta-road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2630"/><stop offset="1" stop-color="#0e0d12"/>
+    </linearGradient>
+    <linearGradient id="ta-fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#07080b" stop-opacity="0"/><stop offset=".55" stop-color="#07080b" stop-opacity=".35"/><stop offset="1" stop-color="#07080b" stop-opacity=".9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#ta-sky)"/>
+  <circle cx="560" cy="640" r="260" fill="url(#ta-sun)"/>
+  <circle cx="560" cy="650" r="58" fill="#ffd38a"/>
+  <path d="M0 640 L120 590 L230 615 L360 548 L470 600 L600 560 L700 598 L820 540 L940 585 L1060 530 L1190 590 L1320 545 L1460 600 L1600 570 V720 H0Z" fill="#3a2a3a"/>
+  <path d="M0 690 Q200 640 420 668 T860 660 T1300 650 T1600 664 V900 H0Z" fill="#6a4232"/>
+  <path d="M0 740 Q260 690 520 716 T1040 706 T1600 720 V900 H0Z" fill="#8a5636"/>
+  <path d="M520 664 L590 664 L1180 900 L-80 900 Z" fill="url(#ta-road)"/>
+  <path d="M553 666 L557 666 L560 690 L552 690 Z M550 705 L560 705 L566 745 L545 745 Z M543 775 L564 775 L576 840 L532 840 Z" fill="#e9c37a" opacity=".85"/>
+  <path d="M524 664 L516 664 L-110 900 L-60 900 Z M586 664 L594 664 L1230 900 L1180 900 Z" fill="#d9c49a" opacity=".55"/>
+  <g fill="#1c1218">
+    <path d="M1060 712 l4 -120 l6 0 l-2 120z"/><path d="M1066 596 q-60 -10 -90 22 q46 -22 90 -14z M1068 596 q60 -12 92 20 q-48 -20 -92 -12z M1067 594 q-30 -40 -78 -44 q40 16 76 50z M1068 594 q32 -42 80 -42 q-42 14 -78 48z M1067 595 q-4 -46 -24 -70 q16 30 22 70z"/>
+    <path d="M1180 728 l3 -96 l5 0 l-2 96z"/><path d="M1184 636 q-48 -8 -72 18 q36 -18 72 -12z M1186 636 q48 -10 74 16 q-38 -16 -74 -10z M1185 634 q-24 -32 -62 -36 q32 12 60 40z M1186 634 q26 -34 64 -34 q-34 12 -62 38z"/>
+  </g>
+  <rect width="1600" height="900" fill="url(#ta-fade)"/>
+</svg>`;
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (className) e.className = className;
@@ -85,13 +120,19 @@ export class MainMenu {
     return !this.root.hidden;
   }
 
-  show(): void {
+  /**
+   * Open the menu. `title`: as the game's own start screen, over its own
+   * picture instead of the game behind it.
+   */
+  show(title = false): void {
+    this.root.classList.toggle('title-screen', title);
     this.render();
     this.root.hidden = false;
   }
 
   hide(): void {
     this.root.hidden = true;
+    this.root.classList.remove('title-screen');
   }
 
   private render(): void {
@@ -99,6 +140,10 @@ export class MainMenu {
     const step = suggestedStep(p, this.lessons);
     this.section ??= step === 1 ? 'lessons' : 'test';
     this.root.replaceChildren();
+    if (this.root.classList.contains('title-screen')) {
+      const art = el('div', 'menu-art', this.root);
+      art.innerHTML = TITLE_ART;
+    }
     const shell = el('div', 'menu-shell', this.root);
 
     // --- the sections ---

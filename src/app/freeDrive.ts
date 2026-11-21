@@ -953,10 +953,11 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
       camera: CAMERA_NAMES[renderer.mode],
       speedLimit,
     });
+    // The pedals show the player's own foot (the gearbox help may lift the throttle through a change).
     touch.update({
-      throttle: controls.throttle,
-      brake: controls.brake,
-      clutch: controls.clutch,
+      throttle: filter.throttle,
+      brake: filter.brake,
+      clutch: filter.clutch,
       steer: controls.steer,
       lever: selectedGear,
       engaged: gear,
@@ -979,7 +980,8 @@ export async function startFreeDrive(app: HTMLElement, canvas: HTMLCanvasElement
   for (let i = 0; i < tuning.sim.stepHz; i++) simStep(stepper.dt);
   // In a test the examiner's own instruction says this.
   if (!test && !lessonRun) hud.say(free ? 'msgFreeHint' : 'msgStartHint', 8);
-  if (openedPlain()) mainMenu.show();
+  // A first visit opens on the start screen: the menu over its own picture.
+  if (openedPlain()) mainMenu.show(true);
   requestAnimationFrame(frame);
 
   /** Put the car somewhere, at rest (used by automated page checks). */
